@@ -2474,8 +2474,8 @@ sPstmt.executeQuery();
 
 #### 전제 조건
 
--   Altibase가 지원하는 LOB 데이터 타입은 BLOB 및 CLOB이 있으며, 각각 2Gbytes의
-    최대 크기를 가질 수 있다.
+-   Altibase가 지원하는 LOB 데이터 타입은 BLOB 및 CLOB이 있으며, 각각 4GB-1byte의
+    최대 크기를 가질 수 있다. 단, JDK 1.6 이상에서만 가능하다.
 
 LOB 데이터를 정상적으로 다루기 위해서는 세션의 autocommit 모드가 아래의 조건 중
 하나를 만족해야 한다.
@@ -2511,6 +2511,15 @@ PreparedStatement sPstmt = connection().prepareStatement("INSERT INTO TEST_TABLE
 sPstmt.setBinaryStream(1, sInputStream, sLength);
 ...
 sPstmt.execute();
+...
+```
+
+JDK 1.5에서는 sPstmt를 AltibasePreparedStatement 타입으로 캐스팅 하면 long 타입의 길이 변수로 정의된 setBinaryStream() 메소드를 호출할 수 있다.
+
+```
+import Altibase.jdbc.driver.AltibasePreparedStatement;
+...
+((AltibasePreparedStatement)sPstmt).setBinaryStream(1, sInputStream, sLength);
 ...
 ```
 
@@ -2831,6 +2840,15 @@ VALUES (?)");
 sPstmt.setCharacterStream(1, sReader, sLength);
 ...
 sPstmt.execute();
+...
+```
+
+JDK 1.5에서는 sPstmt를 AltibasePreparedStatement 타입으로 캐스팅 하면 long 타입의 길이 변수로 정의된 setCharacterStream() 메소드를 호출할 수 있다.
+
+```
+import Altibase.jdbc.driver.AltibasePreparedStatement;
+...
+((AltibasePreparedStatement)sPstmt).setCharacterStream(1, sReader, sLength);
 ...
 ```
 
@@ -3483,7 +3501,7 @@ Hibernate 가 공식적으로 제공하는 라이브러리는 AltibaseDialect.cl
 AltibaseDialect.java 파일 (필요에 따라 AltibaseLimitHandler.java 포함)을 컴파일하고 Hibernate 가
 제공하는 파일에 포팅해야 사용할 수 있다. AltibaseDialect.java 파일과 AltibaseLimitHandler.java 파일은
 Altibase Github 사이트에서 제공한다. 상세한 사용 방법은 AltibaseDialect 포팅 방법
-(https://github.com/ALTIBASE/hibernate-orm/blob/master/ALTIBASE_DIALECT_PORTING.md)을 참고한다.
+(https://github.com/ALTIBASE/hibernate-orm/blob/master/ALTIBASE_DIALECT_PORTING.md) 을 참고한다.
 
 ### Sharding
 #### Properties
@@ -3491,10 +3509,10 @@ jdbc sharding 기능을 위해 다음 속성들이 추가되었다.
 ##### shard_transaction_level
 | 기본값    | 1                                                             |
 |----------|---------------------------------------------------------------|
-| 값의 범위 | [0 \| 1 \| 2]                                                 |
+| 값의 범위 | [0 \| 1 ]                                                 |
 | 필수 여부 | No                                                            |
 | 설정 범위 | 세션                                                           |
-| 설명     | 샤드트랜잭션 레벨을 설정한다. <br>0 : single node transaction<br>1 : multiple node transaction<br>2 : global transaction      |
+| 설명     | 샤드트랜잭션 레벨을 설정한다. <br>0 : single node transaction<br>1 : multiple node transaction |
 
 ##### shard_conn_type
 | 기본값    | TCP                                                           |
@@ -3511,6 +3529,14 @@ jdbc sharding 기능을 위해 다음 속성들이 추가되었다.
 | 필수 여부 | No                                                            |
 | 설정 범위 | 세션                                                           |
 | 설명     | 데이터노드와의 연결을 수립할 때 지연된 연결을 사용할지 여부를 결정한다.<br>false : meta접속 후 바로 데이터노드들로 접속하고 prepare시에도 각 노드들로 prepare요청을 한꺼번에 보낸다.<br>true : execute시 필요한 노드에 대해 연결하고 prepare요청을 보낸다.   |
+
+##### reshard_enable
+| 기본값    | false                                                           |
+|----------|---------------------------------------------------------------|
+| 값의 범위 | [true \| false]                                               |
+| 필수 여부 | No                                                            |
+| 설정 범위 | 세션                                                           |
+| 설명     | 온라인 리샤딩 사용 여부를 결정한다.                                 |
 
 #### 버전 확인
 Altibase.jar 파일 하나에 sharding 기능이 통합되어 있으며, 다음과 같이 java -jar 를 해보면 sharding을 지원하는지 확인할 수 있다.

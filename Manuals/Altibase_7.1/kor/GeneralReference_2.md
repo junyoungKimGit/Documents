@@ -3199,7 +3199,8 @@ Lazy 모드로 이중화 수행 과정에서 Active 서버와 Standby 서버의 
   size, precision, scale 이 다를 경우
 - 제약 조건  
   check 제약 조건이 다를 경우  
-  Not Null 제약 조건이 다를 경우
+  Not Null 제약 조건이 다를 경우  
+  다른 메타 정보 중 LOB 컬럼이 포함된 경우
 - 인덱스  
   유니크 인덱스나 Function-based 인덱스가 이중화 대상 컬럼과 이중화 대상이
   아닌 컬럼으로 구성되어 있을 경우  
@@ -3231,6 +3232,10 @@ Unsigned Integer
 
 - 0: Normal Insert
 - 1: Direct-Path Insert
+
+이중화 SYNC 과정에서 Direct-Path Insert 방식을 이용할 경우, 
+데이터 동기화 이후 Index를 재생성한다. 따라서, 이중화 SYNC 과정이 도중에 실패할 경우, 
+Index inconsistent 가 발생할 수 있다.
 
 Direct-Path Insert에 대한 자세한 설명은 *Administrator’s Manual*을 참조하기
 바란다. Altibase 운영 중 ALTER SYSTEM 문을 이용하여 이 프로퍼티의 값을 변경할 수

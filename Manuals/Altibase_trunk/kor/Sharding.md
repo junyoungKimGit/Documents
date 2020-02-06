@@ -1,3 +1,5 @@
+
+
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 
@@ -61,8 +63,10 @@
     - [설치](#%EC%84%A4%EC%B9%98)
     - [사용자 인터페이스](#%EC%82%AC%EC%9A%A9%EC%9E%90-%EC%9D%B8%ED%84%B0%ED%8E%98%EC%9D%B4%EC%8A%A4)
     - [샤드 데이터베이스 관리](#%EC%83%A4%EB%93%9C-%EB%8D%B0%EC%9D%B4%ED%84%B0%EB%B2%A0%EC%9D%B4%EC%8A%A4-%EA%B4%80%EB%A6%AC)
+    - [샤드 데이터베이스 레포트](#%EC%83%A4%EB%93%9C-%EB%8D%B0%EC%9D%B4%ED%84%B0%EB%B2%A0%EC%9D%B4%EC%8A%A4-%EB%A0%88%ED%8F%AC%ED%8A%B8)
+    - [샤드 노드 관리](#%EC%83%A4%EB%93%9C-%EB%85%B8%EB%93%9C-%EA%B4%80%EB%A6%AC)
     - [샤드 객체 관리](#%EC%83%A4%EB%93%9C-%EA%B0%9D%EC%B2%B4-%EA%B4%80%EB%A6%AC)
-    - [SQL 실행](#sql-%EC%8B%A4%ED%96%89)
+    - [SQL 실행: DDL](#sql-%EC%8B%A4%ED%96%89-ddl)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -513,8 +517,6 @@ NODE[DATA(‘node1’)] SELECT * FROM s1;
 
 -   다중 노드 트랜잭션(multiple node transaction)  
     분산 트랜잭션을 허용하지만, 샤드 트랜잭션의 일관성을 보장하지 않는다.
--   글로벌 트랜잭션(global transaction)  
-    분산 트랜잭션을 허용하고, 샤드 트랜잭션의 일관성을 보장한다.
 
 ##### 샤드 메타 번호(Shard Meta Number )
 
@@ -768,16 +770,6 @@ Q3) select sum(c) total_count from (select count(*) c from t1);
 Q3-1) select count(*) c from t1;
 Q3-2) select sum(c) total_count from temp;
 ```
-
-#### 글로벌 트랜잭션
-
-샤드 트랜잭션은 분산 트랜잭션의 일관성을 보장하기 위하여 2단계 커밋(2-Phase
-Commit)을 이용한 글로벌 트랜잭션을 지원한다.
-
-> ##### 주의 사항
->
-> 복제(clone) 분할 방식을 사용하면 데이터가 서버에 중복하여 저장되기 때문에,
-> 글로벌 트랜잭션을 이용하더라도 데이터의 일관성이 보장되지 않을 수 있다.
 
 #### 다양한 샤드 쿼리와 함수 지원
 
@@ -1517,7 +1509,7 @@ Unsigned Integer
 
 ##### 기본값
 
-1
+65537
 
 ##### 속성
 
@@ -1535,6 +1527,8 @@ Unsigned Integer
 0 : 기본 에러 메시지
 
 1 : 샤드 메타 에러 메시지
+
+65536 : 샤드 메타 변경 트레이스 메시지
 
 샤드 관련 트레이스 로깅 레벨을 확인하는 방법은 *General Reference*의
 V\$TRACELOG를 참조한다.
@@ -1661,7 +1655,6 @@ $ALTIBASE_HOME/bin/altibase -v
 샤드 라이브러리 커넥션의 통신 방법으로 사용자 커넥션 스트링의 SHARD_CONNTYPE 속성에 해당하며 다음의 통신 타입을 지원한다.
 SHARD_CONNTYPE 을 명시하지 않을 경우 TCP 를 기본값으로 동작한다.
 - 1: TCP (기본값)
-- 6: SSL
 - 8: IB (InfiniBand)
 
 #### 코디네이터 커넥션(Coordinator Connection)
@@ -2223,8 +2216,6 @@ Altibase Sharding은 분산된 여러 데이터베이스를 다루게 되므로 
 
 -   다중 노드 트랜잭션 (multiple node transaction)
 
--   글로벌 트랜잭션 (global transaction)
-
 #### 다중 노드 트랜잭션
 
 Altibase Sharding에서 ACID는 보장하지는 않지만, 여러 샤드 노드에 대한
@@ -2250,7 +2241,7 @@ SQLSetConnectAttr (
 ##### 설명
 
 다중 노드 트랜잭션을 설정한다. 다중 노드 트랜잭션으로 설정할 때에는
-*StringLength* 인자 값에 ALTIBASE_SHARD_MULTIPLE_NODE_TRANSACTION을 입력한다.
+Attribute에는 ALTIBASE_GLOBAL_TRANSACTION_LEVEL을 ValuePtr에는 ALTIBASE_MULTIPLE_NODE_TRANSACTION을 입력한다.
 SQLSetConnectAttr에 대한 자세한 설명은 “*CLI User's Manual \> 2. Altibase CLI
 함수”*를 참조한다.  
 jdbc같은 경우 CLI의 SQLSetConnectAttr이 없기 때문에 연결속성의 형태로 지원한다.
@@ -2259,45 +2250,13 @@ jdbc같은 경우 CLI의 SQLSetConnectAttr이 없기 때문에 연결속성의 �
 ###### ShardCLI
 
 ```
-SQLSetConnectAttr(dbc, SQL_ATTR_AUTOCOMMIT, (void*)SQL_AUTOCOMMIT_OFF, ALTIBASE_SHARD_MULTIPLE_NODE_TRANSACTION);
+SQLSetConnectAttr(dbc, ALTIBASE_GLOBAL_TRANSACTION_LEVEL, (void*)ALTIBASE_MULTIPLE_NODE_TRANSACTION, 0);
 ```
 ###### ShardJDBC
 
 ```
 DriverManager.getConnection("jdbc:sharding:Altibase://ip_address:port/mydb?shard_transaction_level=1");
 ```
-
-#### 글로벌 트랜잭션
-
-Altibase Sharding에서 ACID를 보장하면서 여러 샤드 노드에 대한 트랜잭션
-일관성을 보장하는 트랜잭션을 말한다.
-
-##### 구문
-
-```
-SQLSetConnectAttr (
-	SQLHDBC 	dbc,
-	SQLINTEGER 	Attribute,
-	SQLPOINTER	ValuePtr,
-	SQLINTEGER 	StringLength );
-```
-
-##### 설명
-
-글로벌 트랜잭션을 설정한다. 글로벌 트랜잭션으로 설정할 때에는 *StringLength*
-인자 값에 ALTIBASE_SHARD_GLOBAL_TRANSACTION을 입력한다. SQLSetConnectAttr에 대한
-자세한 설명은 “*CLI User's Manual \> 2. Altibase CLI 함수”*를 참조한다.
-
-##### 예제
-###### ShardCLI
-```
-SQLSetConnectAttr(dbc, SQL_ATTR_AUTOCOMMIT, (void*)SQL_AUTOCOMMIT_OFF, ALTIBASE_SHARD_GLOBAL_TRANSACTION);
-```
-###### ShardJDBC
-```
-DriverManager.getConnection("jdbc:sharding:Altibase://ip_address:port/mydb?shard_transaction_level=2");
-```
-
 
 ### 샤드 쿼리
 
@@ -2541,6 +2500,7 @@ Outer join이 inner join으로 변환될 경우를 지원한다. 다음 쿼리�
 
 -   SELECT \~ FROM *s1* RIGHT OUTER JOIN *c1* ON *c1.i1 = s1.i1* WHERE *s1.i1 = 1*
     
+
 =\> SELECT \~ FROM *s1* INNER JOIN *c1* ON *c1.i1 = s1.i1* WHERE *s1.i1 = 1*
     
 
@@ -3084,175 +3044,69 @@ SELECT * FROM SHARD(SELECT * FROM T1 WHERE I2>3) t1, t2 WHERE t1.i1=t2.i1;
 
 ### 모니터링 
 
-Altibase Sharding 사용자는 샤딩 시스템에서 제공하는 샤드 성능 뷰를 이용하여 모든
-샤드 노드의 수행 상태를 확인할 수 있다.
+Altibase Sharding 사용자는 샤딩 시스템에서 제공하는 샤드 성능 뷰를 이용하여 모든 샤드 노드의 수행 상태를 확인할 수 있다.
 
-샤드 성능 뷰 이외의 내용을 확인하고 싶은 경우 NODE 키워드를 이용하여 전체 샤드
-노드를 모니터링 할 수 있다. NODE 키워드는 샤드 객체로 등록하지 않았더라도 쿼리를
-수행할 수 있도록 해준다.
+모든 샤드 노드에 대해 쿼리를 동시에 수행하므로 샤딩 시스템의 모든 샤드 노드를 한번에 관찰하기에 유용하다.
 
-NODE 키워드는 모든 샤드 노드에 대해 쿼리를 전송하므로 노드의 상태에 따라 쿼리가
-실패할 수 있다.
-
-NODE 키워드는 모든 샤드 노드에 대해 쿼리를 동시에 수행하므로 모든 샤드 노드를
-한번에 관찰하기에 유용하다.
+샤드 성능 뷰는 내부적으로 NODE 키워드를 이용하여 모든 샤드 노드의 성능 뷰 정보와 그 외 추가적인 정보를 취합하여 생성된다. 따라서 노드의 상태에 따라 쿼리가 실패할 수도 있다.
 
 #### Property 조회
 
-S\$PROPERTY를 이용하여 샤딩 시스템에서 사용되는 모든 노드의 시스템 프로퍼티를
-확인할 수 있다.
+S\$PROPERTY를 이용하여 샤딩 시스템에서 사용되는 모든 노드의 시스템 프로퍼티를 확인할 수 있다.
 
-예를 들어 샤딩 시스템에서 시스템 프로퍼티가 다르게 설정된 프로퍼티를 검출하는
-방법은 다음과 같다.
+예를 들어 모든 샤드 노드의 PORT_NO 를 확인하는 방법은 다음과 같다.
 
 ```
-iSQL> SELECT DISTINCT name FROM s$property
-WHERE D_STOREDCOUNT != STOREDCOUNT
-OR D_MIN != MIN
-OR D_MAX != MAX
-OR D_VALUE1 != VALUE1
-OR D_VALUE2 != VALUE2
-OR D_VALUE3 != VALUE3
-OR D_VALUE4 != VALUE4
-OR D_VALUE5 != VALUE5
-OR D_VALUE6 != VALUE6
-OR D_VALUE7 != VALUE7
-OR D_VALUE8 != VALUE8
-ORDER BY 1;
-NAME
---------------------------------------------------------------------------------------------------------------------
-ARCHIVE_DIR
-AUDIT_LOG_DIR
-DEFAULT_DISK_DB_DIR
-DOUBLE_WRITE_DIRECTORY
-EXTPROC_AGENT_SOCKET_FILEPATH
-IPCDA_FILEPATH
-IPC_FILEPATH
-LOGANCHOR_DIR
-LOG_DIR
-MEM_DB_DIR
-MIN_LOG_RECORD_SIZE_FOR_COMPRESS
-PORT_NO
-QUERY_PROF_LOG_DIR
-RP_CONFLICT_MSGLOG_DIR
-SERVER_MSGLOG_DIR
-SHARD_META_ENABLE
-SID
-UNIXDOMAIN_FILEPATH
-18 rows selected.
-```
-
-
-
-#### Session 조회
-
-S\$SESSION을 이용하여 현재 접속한 샤드 노드와 관련된 모든 노드의 세션을
-확인할 수 있다.
-
-다음은 현재 접속한 샤드 노드와 관련한 모든 세션을 확인하는 방법이다.
-
-```
-iSQL> SET vertical on;
-iSQL> SELECT id, session_id, shard_client, client_app_info, node_name,
-d_session_id, d_shard_client, d_client_app_info, d_session_type FROM s$session;
-ID : 1-0-1503915253
-SESSION_ID : 1
-SHARD_CLIENT : N
-CLIENT_APP_INFO : isql
-NODE_NAME : NODE1
-D_SESSION_ID : 1
-D_SHARD_CLIENT : N
-D_CLIENT_APP_INFO : shard_meta
-D_SESSION_TYPE : I
-ID : 1-0-1503915253
-SESSION_ID : 1
-SHARD_CLIENT : N
-CLIENT_APP_INFO : isql
-NODE_NAME : NODE2
-D_SESSION_ID : 1
-D_SHARD_CLIENT : N
-D_CLIENT_APP_INFO : shard_meta
-D_SESSION_TYPE : I
-ID : 1-0-1503915253
-SESSION_ID : 1
-SHARD_CLIENT : N
-CLIENT_APP_INFO : isql
-NODE_NAME : NODE3
-D_SESSION_ID : 1
-D_SHARD_CLIENT : N
-D_CLIENT_APP_INFO : shard_meta
-D_SESSION_TYPE : I
+iSQL> SELECT node_name, value1 from s$property WHERE name = 'PORT_NO';
+NODE_NAME             VALUE1
+-----------------------------------------------
+NODE1                 20030
+NODE2                 21030
+NODE3                 22030
 3 rows selected.
 ```
 
-위의 방법 이외에도 NODE 키워드를 이용하여 각 샤드 노드의 V\$SESSION을 한번에
-조회할 수 있다.
+#### Session 조회
+
+S\$SESSION을 이용하여 모든 샤드 노드의 모든 샤드 세션을 확인할 수 있다.
+
+다음은 모든 샤드 세션을 확인하는 방법이다.
 
 ```
-NODE[DATA] SELECT shard_node_name(), count(*) total_session, sum(decode(trans_id,0,0,1)) running_session from v$session;
-```
-
-뿐만 아니라, 특정 샤드 노드에 대해서도 수행이 가능하다.
-
-```
-NODE[DATA(‘node1’)] SELECT shard_node_name(), count(*) total_session, sum(decode(trans_id,0,0,1)) running_session from v$session;
+iSQL> SELECT id, node_name, session_id, shard_client, shard_session_type FROM s$session;
+ID                    NODE_NAME     SESSION_ID     SHARD_CLIENT   SHARD_SESSION_TYPE
+----------------------------------------------------------------------------------------------
+1-1-1701180354        NODE1         2              N              U
+1-1-1701180354        NODE1         1              N              C
+1-1-1701180354        NODE2         1              N              C
+1-1-1701180354        NODE3         1              N              C
+4 rows selected.
 ```
 
 #### Statement 조회
 
-S\$STATEMENT를 이용하여 현재 접속한 샤드 노드와 관련된 모든 노드의 세션에서
-실행되는(또는 가장 최근 실행된) 구문을 확인할 수 있다.
+S\$STATEMENT를 이용하여 모든 샤드 세션에서 실행되는(또는 가장 최근 실행된) 구문을 확인할 수 있다.
 
-다음은 현재 접속한 샤드 노드와 관련한 모든 세션에서 수행되는 모든 구문을
-확인하는 방법이다.
+다음은 모든 샤드 세션에서 수행되는 모든 구문을 확인하는 방법이다.
 
 ```
-iSQL> SET vertical on;
-iSQL> SELECT shard_session_id, shard_session_type, node_name, session_id,
-statement_id, query_type, substr(query, 1, 6) FROM s$statement;
-SHARD_SESSION_ID : 1-0-907178928
-SHARD_SESSION_TYPE : E
-NODE_NAME : META
-SESSION_ID : 1
-STATEMENT_ID : 65538
-QUERY_TYPE : N
-SUBSTR(QUERY, 1, 50) : SELECT
-SHARD_SESSION_ID : 1-0-907178928
-SHARD_SESSION_TYPE : I
-NODE_NAME : NODE1
-SESSION_ID : 3
-STATEMENT_ID : 196608
-QUERY_TYPE : -
-SUBSTR(QUERY, 1, 50) : SELECT
-SHARD_SESSION_ID : 1-0-907178928
-SHARD_SESSION_TYPE : I
-NODE_NAME : NODE2
-SESSION_ID : 1
-STATEMENT_ID : 65537
-QUERY_TYPE : -
-SUBSTR(QUERY, 1, 50) : SELECT
-SHARD_SESSION_ID : 1-0-907178928
-SHARD_SESSION_TYPE : I
-NODE_NAME : NODE3
-SESSION_ID : 1
-STATEMENT_ID : 65537
-QUERY_TYPE : -
-SUBSTR(QUERY, 1, 50) : SELECT
+iSQL> SELECT shard_session_id, node_name, shard_session_type, session_id, id, query_type, substr(query, 1, 6) FROM s$statement;
+SHARD_SESSION_ID    NODE_NAME    SHARD_SESSION_TYPE  SESSION_ID  ID          QUERY_TYPE    SUBSTR(QUERY, 1, 6)
+------------------------------------------------------------------------------------------------------------------------
+1-1-1701180354      NODE1        C                   1           65538       -             SELECT
+1-1-1701180354      NODE1        U                   2           131072      N             SELECT
+1-1-1701180354      NODE2        C                   1           65538       -             SELECT
+1-1-1701180354      NODE3        C                   1           65538       -             SELECT
 4 rows selected.
 ```
 
-위의 방법 이외에도 NODE 키워드를 이용하여 샤드 노드의 v\$statement을 한번에
-조회할 수 있다.
-
-```
-NODE[DATA] SELECT shard_node_name(), sum(execute_success) from v$statement
-```
-
-뿐만 아니라, 특정 샤드 노드에 대해서도 수행이 가능하다.
-
-```
-NODE[DATA(‘node1’)] SELECT shard_node_name(), sum(execute_success) from v$statement
-```
+> #### 주의사항
+>
+> 특정 노드의 장애로 인해 샤드 성능 뷰로 조회가 불가능할 경우 NODE 키워드를 이용하여 다른 노드의 상태를 확인할 수 있다.
+>
+> ```
+> NODE[DATA(‘node1’)] SELECT shard_node_name(), QUERY_TIME_LIMIT FROM v$session;
+> ```
 
 ### Fail-Over
 
@@ -3621,11 +3475,7 @@ Altibase Sharding은 샤드 테이블의 분산 정보를 변경한 후, 기존�
 성능을 고려하여, 데이터 재구축은 변경된 분산 기준에 맞지 않는
 데이터(incorrect data)만 이동(move)시키는 방식으로 수행되며 여러 세션에서
 동시에 수행 가능하다. 단, 내부적으로 데이터의 이동이 수반되기 때문에
-데이터의 정합성 보장을 위해서 다음과 같은 환경으로 수행하길 권장한다.
-
--   Non-autocommit
-
--   Global Transaction
+데이터의 정합성 보장을 위해서는 사용자 어플리케이션을 정지한 이후 수행해야 한다.
 
 데이터 재구축은 샤드 키 분산(hash, range, list, composite) 방식을 적용한
 샤드 테이블에 한해 지원하며, 복제 분산 방식과 독립 분산 방식은 지원하지
@@ -3660,7 +3510,7 @@ DBMS_SHARD.REBUILD_DATA_NODE
 
 ```
 iSQL> ALTER SESSION SET autocommit = false;
-iSQL> ALTER SESSION SET dblink_global_transaction_level = 2;
+iSQL> ALTER SESSION SET global_transaction_level = 2;
 
 iSQL> EXEC dbms_shard.rebuild_data('u1','s1',100);
 [11:34:47] target node(1/3): "NODE1"
@@ -4178,22 +4028,21 @@ iSQL\> SELECT \* FROM S\$TAB;
 | **이름**           | **설명**                                                     |
 | ------------------ | ------------------------------------------------------------ |
 | S\$CONNECTION_INFO | 현재 세션에서의 코디네이팅 샤드 노드와 다른 샤드 노드의 연결 상태에 대한 정보 |
-| S\$PROPERTY        | 샤딩 시스템의 모든 샤드 노드에 설정된 시스템 프로퍼티 정보   |
-| S\$SESSION         | 현재 접속한 샤드 노드와 관련된 모든 샤드 노드의 세션 정보    |
-| S\$STATEMENT       | 현재 접속한 샤드 노드와 관련된 모든 샤드 노드의 세션에서 수행되는 모든 구문 정보 |
+| S\$PROPERTY        | 모든 샤드 노드의 시스템 프로퍼티 정보                        |
+| S\$SESSION         | 모든 샤드 노드의 샤드 세션에 대한 세션 정보                  |
+| S\$STATEMENT       | 모든 샤드 노드의 세션에서 수행되는 모든 구문 정보            |
 
 ### S\$CONNECTION_INFO
 
 현재 세션에서 코디네이터가 연결한 접속 상태에 대한 정보를 보여주는 성능 뷰 이다.
 
-| Column name     | Type        | Description                                        |
-| --------------- | ----------- | -------------------------------------------------- |
-| NODE_ID         | INTEGER     | 샤드 노드의 지역 식별자                            |
-| NODE_NAME       | VARCHAR(40) | 샤드 노드 이름                                     |
-| COMM_NAME       | VARCHAR(64) | 접속 정보                                          |
-| AUTOCOMMIT_FLAG | INTEGER     | autocommit 플래그 0: non-autocommit 1: auto commit |
-| TOUCH_COUNT     | INTEGER     | 현재 트랜잭션의 DML 발생 횟수                      |
-| LINK_FAILURE    | INTEGER     | 샤드 노드의 연결 상태 0: 정상 1: 실패              |
+| Column name  | Type        | Description                           |
+| ------------ | ----------- | ------------------------------------- |
+| NODE_ID      | INTEGER     | 샤드 노드의 지역 식별자               |
+| NODE_NAME    | VARCHAR(40) | 샤드 노드 이름                        |
+| COMM_NAME    | VARCHAR(64) | 접속 정보                             |
+| TOUCH_COUNT  | INTEGER     | 현재 트랜잭션의 DML 발생 횟수         |
+| LINK_FAILURE | INTEGER     | 샤드 노드의 연결 상태 0: 정상 1: 실패 |
 
 #### 칼럼 정보
 
@@ -4209,10 +4058,6 @@ iSQL\> SELECT \* FROM S\$TAB;
 
 샤드 노드와의 현재 접속 상태를 나타낸다.
 
-##### AUTOCOMMIT_FLAG
-
-샤드 노드와 연결된 세션에서 autocommit 여부를 나타낸다.
-
 ##### TOUCH_COUNT
 
 샤드 노드와의 연결된 세션 중 현재 트랜잭션에서 발생한 DML 횟수를 나타낸다.
@@ -4225,40 +4070,12 @@ iSQL\> SELECT \* FROM S\$TAB;
 
 샤딩 시스템의 각 노드에 설정된 시스템 프로퍼티의 정보를 보여준다.
 
-| Column name   | Type         | Description                                |
-| ------------- | ------------ | ------------------------------------------ |
-| NAME          | VARCHAR(256) | 프로퍼티의 이름                            |
-| STOREDCOUNT   | INTEGER      | 현재 접속한 노드의 V\$PROPERTY.STOREDCOUNT |
-| ATTR          | BIGINT       | 현재 접속한 노드의 V\$PROPERTY.ATTR        |
-| MIN           | VARCHAR(256) | 현재 접속한 노드의 V\$PROPERTY.MIN         |
-| MAX           | VARCHAR(256) | 현재 접속한 노드의 V\$PROPERTY.MAX         |
-| VALUE1        | VARCHAR(256) | 현재 접속한 노드의 V\$PROPERTY.VALUE1      |
-| VALUE2        | VARCHAR(256) | 현재 접속한 노드의 V\$PROPERTY.VALUE2      |
-| VALUE3        | VARCHAR(256) | 현재 접속한 노드의 V\$PROPERTY.VALUE3      |
-| VALUE4        | VARCHAR(256) | 현재 접속한 노드의 V\$PROPERTY.VALUE4      |
-| VALUE5        | VARCHAR(256) | 현재 접속한 노드의 V\$PROPERTY.VALUE5      |
-| VALUE6        | VARCHAR(256) | 현재 접속한 노드의 V\$PROPERTY.VALUE6      |
-| VALUE7        | VARCHAR(256) | 현재 접속한 노드의 V\$PROPERTY.VALUE7      |
-| VALUE8        | VARCHAR(256) | 현재 접속한 노드의 V\$PROPERTY.VALUE8      |
-| NODE_NAME     | VARCHAR(40)  | 샤드 노드의 이름                           |
-| D_STOREDCOUNT | INTEGER      | 샤드 노드의 V\$PROPERTY.STOREDCOUNT        |
-| D_ATTR        | BIGINT       | 샤드 노드의 V\$PROPERTY.ATTR               |
-| D_MIN         | VARCHAR(256) | 샤드 노드의 V\$PROPERTY.MIN                |
-| D_MAX         | VARCHAR(256) | 샤드 노드의 V\$PROPERTY.MAX                |
-| D_VALUE1      | VARCHAR(256) | 샤드 노드의 V\$PROPERTY.VALUE1             |
-| D_VALUE2      | VARCHAR(256) | 샤드 노드의 V\$PROPERTY.VALUE2             |
-| D_VALUE3      | VARCHAR(256) | 샤드 노드의 V\$PROPERTY.VALUE3             |
-| D_VALUE4      | VARCHAR(256) | 샤드 노드의 V\$PROPERTY.VALUE4             |
-| D_VALUE5      | VARCHAR(256) | 샤드 노드의 V\$PROPERTY.VALUE5             |
-| D_VALUE6      | VARCHAR(256) | 샤드 노드의 V\$PROPERTY.VALUE6             |
-| D_VALUE7      | VARCHAR(256) | 샤드 노드의 V\$PROPERTY.VALUE7             |
-| D_VALUE8      | VARCHAR(256) | 샤드 노드의 V\$PROPERTY.VALUE8             |
+| Column name | Type         | Description                    |
+| ----------- | ------------ | ------------------------------ |
+| NODE_NAME   | VARCHAR(256) | 샤드 노드 이름                 |
+| 그 외 컬럼  |              | 샤드 노드의 V$PROPERTY 와 동일 |
 
 #### 칼럼 정보
-
-##### NAME
-
-해당 프로퍼티의 이름을 나타낸다.
 
 ##### NODE_NAME
 
@@ -4266,134 +4083,22 @@ iSQL\> SELECT \* FROM S\$TAB;
 
 ##### 그 외 컬럼
 
-위 항목을 제외한 모든 칼럼은 *General Reference* 의 V\$PROPERTY 의 칼럼 정보를
-참고한다.
+위 항목을 제외한 모든 칼럼은 *General Reference* 의 V\$PROPERTY 의 칼럼 정보를 참고한다.
 
 ### S\$SESSION
 
-현재 접속한 샤드 노드와 관련된 모든 샤드 노드의 세션에 대한 정보를 보여준다.
+샤드 세션과 관련한 모든 샤드 노드의 세션에 대한 정보를 보여준다.
 
-| Column name                          | Type         | Description                                                  |
-| ------------------------------------ | ------------ | ------------------------------------------------------------ |
-| ID                                   | VARCHAR(20)  | 샤드 세션 식별자                                             |
-| SESSION_ID                           | BIGINT       | 현재 접속 노드의 V\$SESSION.ID                               |
-| SHARD_CLIENT                         | VARCHAR(1)   | 현재 접속 노드의 세션에 대한 샤드 클라이언트 라이브러리 사용 유무 |
-| TRANS_ID                             | BIGINT       | 현재 접속 노드의 V\$SESSION.TRANS_ID                         |
-| TASK_STATE                           | VARCHAR(11)  | 현재 접속 노드의 V\$SESSION.TASK_STATE                       |
-| COMM_NAME                            | VARCHAR(64)  | 현재 접속 노드의 V\$SESSION.COMM_NAME                        |
-| XA_SESSION_FLAG                      | INTEGER      | 현재 접속 노드의 V\$SESSION.XA_SESSION_FLAG                  |
-| XA_ASSOCIATE_FLAG                    | INTEGER      | 현재 접속 노드의 V\$SESSION.XA_ASSOCIATE_FLAG                |
-| QUERY_TIME_LIMIT                     | BIGINT       | 현재 접속 노드의 V\$SESSION.QUERY_TIME_LIMIT                 |
-| DDL_TIME_LIMIT                       | BIGINT       | 현재 접속 노드의 V\$SESSION.DDL_TIME_LIMIT                   |
-| FETCH_TIME_LIMIT                     | BIGINT       | 현재 접속 노드의 V\$SESSION.FETCH_TIME_LIMIT                 |
-| UTRANS_TIME_LIMIT                    | BIGINT       | 현재 접속 노드의 V\$SESSION.UTRANS_TIME_LIMIT                |
-| IDLE_TIME_LIMIT                      | BIGINT       | 현재 접속 노드의 V\$SESSION.IDLE_TIME_LIMIT                  |
-| IDLE_START_TIME                      | INTEGER      | 현재 접속 노드의 V\$SESSION.IDLE_START_TIME                  |
-| ACTIVE_FLAG                          | INTEGER      | 현재 접속 노드의 V\$SESSION.ACTIVE_FLAG                      |
-| OPENED_STMT_COUNT                    | INTEGER      | 현재 접속 노드의 V\$SESSION.OPENED_STMT_COUNT                |
-| CLIENT_PACKAGE_VERSION               | VARCHAR(40)  | 현재 접속 노드의 V\$SESSION.CLIENT_PACKAGE_VERSION           |
-| CLIENT_PROTOCOL_VERSION              | VARCHAR(40)  | 현재 접속 노드의 V\$SESSION.CLIENT_PROTOCOL_VERSION          |
-| CLIENT_PID                           | BIGINT       | 현재 접속 노드의 V\$SESSION.CLIENT_PID                       |
-| CLIENT_TYPE                          | VARCHAR(40)  | 현재 접속 노드의 V\$SESSION.CLIENT_TYPE                      |
-| CLIENT_APP_INFO                      | VARCHAR(128) | 현재 접속 노드의 V\$SESSION.CLIENT_APP_INFO                  |
-| CLIENT_NLS                           | VARCHAR(40)  | 현재 접속 노드의 V\$SESSION.CLIENT_NLS                       |
-| DB_USERNAME                          | VARCHAR(128) | 현재 접속 노드의 V\$SESSION.DB_USERNAME                      |
-| DB_USERID                            | INTEGER      | 현재 접속 노드의 V\$SESSION.DB_USERID                        |
-| DEFAULT_TBSID                        | BIGINT       | 현재 접속 노드의 V\$SESSION.DEFAULT_TBSID                    |
-| DEFAULT_TEMP_TBSID                   | BIGINT       | 현재 접속 노드의 V\$SESSION.DEFAULT_TEMP_TBSID               |
-| SYSDBA_FLAG                          | INTEGER      | 현재 접속 노드의 V\$SESSION.SYSDBA_FLAG                      |
-| AUTOCOMMIT_FLAG                      | INTEGER      | 현재 접속 노드의 V\$SESSION.AUTOCOMMIT_FLAG                  |
-| SESSION_STATE                        | VARCHAR(13)  | 현재 접속 노드의 V\$SESSION.SESSION_STATE                    |
-| ISOLATION_LEVEL                      | INTEGER      | 현재 접속 노드의 V\$SESSION.ISOLATION_LEVEL                  |
-| REPLICATION_MODE                     | INTEGER      | 현재 접속 노드의 V\$SESSION.REPLICATION_MODE                 |
-| TRANSACTION_MODE                     | INTEGER      | 현재 접속 노드의 V\$SESSION.TRANSACTION_MODE                 |
-| COMMIT_WRITE_WAIT_MODE               | INTEGER      | 현재 접속 노드의 V\$SESSION.COMMIT_WRITE_WAIT_MODE           |
-| OPTIMIZER_MODE                       | INTEGER      | 현재 접속 노드의 V\$SESSION.OPTIMIZER_MODE                   |
-| HEADER_DISPLAY_MODE                  | INTEGER      | 현재 접속 노드의 V\$SESSION.HEADER_DISPLAY_MODE              |
-| CURRENT_STMT_ID                      | INTEGER      | 현재 접속 노드의 V\$SESSION.CURRENT_STMT_ID                  |
-| STACK_SIZE                           | INTEGER      | 현재 접속 노드의 V\$SESSION.STACK_SIZE                       |
-| DEFAULT_DATE_FORMAT                  | VARCHAR(64)  | 현재 접속 노드의 V\$SESSION.DEFAULT_DATE_FORMAT              |
-| TRX_UPDATE_MAX_LOGSIZE               | BIGINT       | 현재 접속 노드의 V\$SESSION.TRX_UPDATE_MAX_LOGSIZE           |
-| PARALLEL_DML_MODE                    | INTEGER      | 현재 접속 노드의 V\$SESSION.PARALLEL_DML_MODE                |
-| LOGIN_TIME                           | INTEGER      | 현재 접속 노드의 V\$SESSION.LOGIN_TIME                       |
-| FAILOVER_SOURCE                      | VARCHAR(256) | 현재 접속 노드의 V\$SESSION.FAILOVER_SOURCE                  |
-| NLS_TERRITORY                        | VARCHAR(40)  | 현재 접속 노드의 V\$SESSION.NLS_TERRITORY                    |
-| NLS_ISO_CURRENCY                     | VARCHAR(40)  | 현재 접속 노드의 V\$SESSION.NLS_ISO_CURRENCY                 |
-| NLS_CURRENCY                         | VARCHAR(10)  | 현재 접속 노드의 V\$SESSION.NLS_CURRENCY                     |
-| NLS_NUMERIC_CHARACTERS               | VARCHAR(2)   | 현재 접속 노드의 V\$SESSION.NLS_NUMERIC_CHARACTERS           |
-| TIME_ZONE                            | VARCHAR(40)  | 현재 접속 노드의 V\$SESSION.TIME_ZONE                        |
-| LOB_CACHE_THRESHOLD                  | INTEGER      | 현재 접속 노드의 V\$SESSION.LOB_CACHE_THRESHOLD              |
-| QUERY_REWRITE_ENABLE                 | VARCHAR(7)   | 현재 접속 노드의 V\$SESSION.QUERY_REWRITE_ENABLE             |
-| DBLINK_GLOBAL_TRANSACTION_LEVEL      | INTEGER      | 현재 접속 노드의 V\$SESSION.DBLINK_GLOBAL_TRANSACTION_LEVEL  |
-| DBLINK_REMOTE_STATEMENT_AUTOCOMMIT   | INTEGER      | 현재 접속 노드의 V\$SESSION.DBLINK_REMOTE_STATEMENT_AUTOCOMMIT |
-| MAX_STATEMENTS_PER_SESSION           | INTEGER      | 현재 접속 노드의 V\$SESSION.MAX_STATEMENTS_PER_SESSION       |
-| SSL_CIPHER                           | VARCHAR(256) | 현재 접속 노드의 V\$SESSION.SSL_CIPHER                       |
-| SSL_CERTIFICATE_SUBJECT              | VARCHAR(256) | 현재 접속 노드의 V\$SESSION.SSL_CERTIFICATE_SUBJECT          |
-| SSL_CERTIFICATE_ISSUER               | VARCHAR(256) | 현재 접속 노드의 V\$SESSION.SSL_CERTIFICATE_ISSUER           |
-| MODULE                               | VARCHAR(128) | 현재 접속 노드의 V\$SESSION.MODULE                           |
-| ACTION                               | VARCHAR(128) | 현재 접속 노드의 V\$SESSION.ACTION                           |
-| REPLICATION_DDL_SYNC                 | INTEGER      | 현재 접속 노드의 V\$SESSION.REPLICATION_DDL_SYNC             |
-| REPLICATION_DDL_SYNC_TIMELIMIT       | BIGINT       | 현재 접속 노드의 V\$SESSION.REPLICATION_DDL_SYNC_TIMELIMIT   |
-| NODE_NAME                            | VARCHAR(40)  | 샤드 노드의 이름                                             |
-| D_SESSION_ID                         | BIGINT       | 샤드 노드의 V\$SESSION.ID                                    |
-| D_SHARD_CLIENT                       | VARCHAR(1)   | 샤드 노드의 세션에 대한 샤드 클라이언트 라이브러리 사용 유무 |
-| D_SESSION_TYPE                       | VARCHAR(1)   | 샤드 노드의 세션에 대한 샤드 커넥션 타입                     |
-| D_TRANS_ID                           | BIGINT       | 샤드 노드의 V\$SESSION.TRANS_ID                              |
-| D_TASK_STATE                         | VARCHAR(11)  | 샤드 노드의 V\$SESSION.TASK_STATE                            |
-| D_COMM_NAME                          | VARCHAR(64)  | 샤드 노드의 V\$SESSION.COMM_NAME                             |
-| D_XA_SESSION_FLAG                    | INTEGER      | 샤드 노드의 V\$SESSION.XA_SESSION_FLAG                       |
-| D_XA_ASSOCIATE_FLAG                  | INTEGER      | 샤드 노드의 V\$SESSION.XA_ASSOCIATE_FLAG                     |
-| D_QUERY_TIME_LIMIT                   | BIGINT       | 샤드 노드의 V\$SESSION.QUERY_TIME_LIMIT                      |
-| D_DDL_TIME_LIMIT                     | BIGINT       | 샤드 노드의 V\$SESSION.DDL_TIME_LIMIT                        |
-| D_FETCH_TIME_LIMIT                   | BIGINT       | 샤드 노드의 V\$SESSION.FETCH_TIME_LIMIT                      |
-| D_UTRANS_TIME_LIMIT                  | BIGINT       | 샤드 노드의 V\$SESSION.UTRANS_TIME_LIMIT                     |
-| D_IDLE_TIME_LIMIT                    | BIGINT       | 샤드 노드의 V\$SESSION.IDLE_TIME_LIMIT                       |
-| D_IDLE_START_TIME                    | INTEGER      | 샤드 노드의 V\$SESSION.IDLE_START_TIME                       |
-| D_ACTIVE_FLAG                        | INTEGER      | 샤드 노드의 V\$SESSION.ACTIVE_FLAG                           |
-| D_OPENED_STMT_COUNT                  | INTEGER      | 샤드 노드의 V\$SESSION.OPENED_STMT_COUNT                     |
-| D_CLIENT_PACKAGE_VERSION             | VARCHAR(40)  | 샤드 노드의 V\$SESSION.CLIENT_PACKAGE_VERSION                |
-| D_CLIENT_PROTOCOL_VERSION            | VARCHAR(40)  | 샤드 노드의 V\$SESSION.CLIENT_PROTOCOL_VERSION               |
-| D_CLIENT_PID                         | BIGINT       | 샤드 노드의 V\$SESSION.CLIENT_PID                            |
-| D_CLIENT_TYPE                        | VARCHAR(40)  | 샤드 노드의 V\$SESSION.CLIENT_TYPE                           |
-| D_CLIENT_APP_INFO                    | VARCHAR(128) | 샤드 노드의 V\$SESSION.CLIENT_APP_INFO                       |
-| D_CLIENT_NLS                         | VARCHAR(40)  | 샤드 노드의 V\$SESSION.CLIENT_NLS                            |
-| D_DB_USERNAME                        | VARCHAR(128) | 샤드 노드의 V\$SESSION.DB_USERNAME                           |
-| D_DB_USERID                          | INTEGER      | 샤드 노드의 V\$SESSION.DB_USERID                             |
-| D_DEFAULT_TBSID                      | BIGINT       | 샤드 노드의 V\$SESSION.DEFAULT_TBSID                         |
-| D_DEFAULT_TEMP_TBSID                 | BIGINT       | 샤드 노드의 V\$SESSION.DEFAULT_TEMP_TBSID                    |
-| D_SYSDBA_FLAG                        | INTEGER      | 샤드 노드의 V\$SESSION.SYSDBA_FLAG                           |
-| D_AUTOCOMMIT_FLAG                    | INTEGER      | 샤드 노드의 V\$SESSION.AUTOCOMMIT_FLAG                       |
-| D_SESSION_STATE                      | VARCHAR(13)  | 샤드 노드의 V\$SESSION.SESSION_STATE                         |
-| D_ISOLATION_LEVEL                    | INTEGER      | 샤드 노드의 V\$SESSION.ISOLATION_LEVEL                       |
-| D_REPLICATION_MODE                   | INTEGER      | 샤드 노드의 V\$SESSION.REPLICATION_MODE                      |
-| D_TRANSACTION_MODE                   | INTEGER      | 샤드 노드의 V\$SESSION.TRANSACTION_MODE                      |
-| D_COMMIT_WRITE_WAIT_MODE             | INTEGER      | 샤드 노드의 V\$SESSION.COMMIT_WRITE_WAIT_MODE                |
-| D_OPTIMIZER_MODE                     | INTEGER      | 샤드 노드의 V\$SESSION.OPTIMIZER_MODE                        |
-| D_HEADER_DISPLAY_MODE                | INTEGER      | 샤드 노드의 V\$SESSION.HEADER_DISPLAY_MODE                   |
-| D_CURRENT_STMT_ID                    | INTEGER      | 샤드 노드의 V\$SESSION.CURRENT_STMT_ID                       |
-| D_STACK_SIZE                         | INTEGER      | 샤드 노드의 V\$SESSION.STACK_SIZE                            |
-| D_DEFAULT_DATE_FORMAT                | VARCHAR(64)  | 샤드 노드의 V\$SESSION.DEFAULT_DATE_FORMAT                   |
-| D_TRX_UPDATE_MAX_LOGSIZE             | BIGINT       | 샤드 노드의 V\$SESSION.TRX_UPDATE_MAX_LOGSIZE                |
-| D_PARALLEL_DML_MODE                  | INTEGER      | 샤드 노드의 V\$SESSION.PARALLEL_DML_MODE                     |
-| D_LOGIN_TIME                         | INTEGER      | 샤드 노드의 V\$SESSION.LOGIN_TIME                            |
-| D_FAILOVER_SOURCE                    | VARCHAR(256) | 샤드 노드의 V\$SESSION.FAILOVER_SOURCE                       |
-| D_NLS_TERRITORY                      | VARCHAR(40)  | 샤드 노드의 V\$SESSION.NLS_TERRITORY                         |
-| D_NLS_ISO_CURRENCY                   | VARCHAR(40)  | 샤드 노드의 V\$SESSION.NLS_ISO_CURRENCY                      |
-| D_NLS_CURRENCY                       | VARCHAR(10)  | 샤드 노드의 V\$SESSION.NLS_CURRENCY                          |
-| D_NLS_NUMERIC_CHARACTERS             | VARCHAR(2)   | 샤드 노드의 V\$SESSION.NLS_NUMERIC_CHARACTERS                |
-| D_TIME_ZONE                          | VARCHAR(40)  | 샤드 노드의 V\$SESSION.TIME_ZONE                             |
-| D_LOB_CACHE_THRESHOLD                | INTEGER      | 샤드 노드의 V\$SESSION.LOB_CACHE_THRESHOLD                   |
-| D_QUERY_REWRITE_ENABLE               | VARCHAR(7)   | 샤드 노드의 V\$SESSION.QUERY_REWRITE_ENABLE                  |
-| D_DBLINK_GLOBAL_TRANSACTION_LEVEL    | INTEGER      | 샤드 노드의 V\$SESSION.DBLINK_GLOBAL_TRANSACTION_LEVEL       |
-| D_DBLINK_REMOTE_STATEMENT_AUTOCOMMIT | INTEGER      | 샤드 노드의 V\$SESSION.DBLINK_REMOTE_STATEMENT_AUTOCOMMIT    |
-| D_MAX_STATEMENTS_PER_SESSION         | INTEGER      | 샤드 노드의 V\$SESSION.MAX_STATEMENTS_PER_SESSION            |
-| D_SSL_CIPHER                         | VARCHAR(256) | 샤드 노드의 V\$SESSION.SSL_CIPHER                            |
-| D_SSL_CERTIFICATE_SUBJECT            | VARCHAR(256) | 샤드 노드의 V\$SESSION.SSL_CERTIFICATE_SUBJECT               |
-| D_SSL_CERTIFICATE_ISSUER             | VARCHAR(256) | 샤드 노드의 V\$SESSION.SSL_CERTIFICATE_ISSUER                |
-| D_MODULE                             | VARCHAR(128) | 샤드 노드의 V\$SESSION.MODULE                                |
-| D_ACTION                             | VARCHAR(128) | 샤드 노드의 V\$SESSION.ACTION                                |
-| D_REPLICATION_DDL_SYNC               | INTEGER      | 샤드 노드의 V\$SESSION.REPLICATION_DDL_SYNC                  |
-| D_REPLICATION_DDL_SYNC_TIMELIMIT     | BIGINT       | 샤드 노드의 V\$SESSION.REPLICATION_DDL_SYNC_TIMELIMIT        |
+| Column name        | Type        | Description                          |
+| ------------------ | ----------- | ------------------------------------ |
+| ID                 | VARCHAR(20) | 샤드 세션 식별자                     |
+| SHARD_META_NUMBER  | BIGINT      | 세션이 인식하고 있는 SMN             |
+| NODE_NAME          | BIGINT      | 샤드 노드 이름                       |
+| SHARD_CLIENT       | VARCHAR(1)  | 샤드 클라이언트 라이브러리 사용 유무 |
+| SHARD_SESSION_TYPE | VARCHAR(1)  | 샤드 세션 유형                       |
+| SESSION_ID         | BIGINT      | 샤드 노드의 V\$SESSION.ID            |
+| GLOBAL_TRANSACTION_LEVEL | INTEGER | 글로벌 트랜잭션 레벨 |
+| 그 외 컬럼         |             | 샤드 노드의 V$SESSION 과 동일        |
 
 #### 칼럼 정보
 
@@ -4401,124 +4106,83 @@ iSQL\> SELECT \* FROM S\$TAB;
 
 샤드 세션을 구별하는 고유 식별자이다.
 
-##### SHARD_CLIENT
+##### SHARD_META_NUMBER
 
-현재 접속 노드의 세션에 대한 샤드 클라이언트 라이브러리의 사용 여부이다.
+세션이 인식하고 있는 SMN 으로 자세한 내용은 샤드 메타 설정의 Session SMN 을 참고한다.
 
 ##### NODE_NAME
 
-노드의 이름을 나타낸다.
+샤드 노드 이름을 나타낸다.
 
-##### D_SHARD_CLIENT
+##### SHARD_CLIENT
 
-샤드 노드의 세션에 대한 샤드 클라이언트 라이브러리의 사용 여부이다.
+세션의 샤드 클라이언트 라이브러리의 사용 여부이다.
 
-##### D_SESSION_TYPE
+- Y : 샤드 클라이언트 라이브러리 사용
+- N : 샤드 클라이언트 라이브러리 미사용
 
-샤드 노드의 세션에 대한 샤드 커넥션 유형이다.
+##### SHARD_SESSION_TYPE
 
-- 외부 커넥션일 경우 'E' (external connection)
-- 내부 커넥션일 경우 'I' (internal connection)
+세션의 샤드 세션 타입이다.
+
+- U : 사용자와 코디네이터간의 사용자(User) 세션
+- C : 코디네이터와 샤드 데이터간의 코디네이터(Coordinator) 세션
+- L : 사용자와 샤드 데이터간의 샤드 라이브러리(Library) 세션
+
+##### SESSION_ID
+
+샤드 노드의 세션 식별자로 샤드 노드의 V$SESSION.ID 와 동일한 값이다.
+
+##### GLOBAL_TRANSACTION_LEVEL
+
+세션에 설정된 글로벌 트랜잭션 레벨을 나타낸다.
+
+1 : 다중 노드 트랜잭션 (multiple node transaction)
+
+샤딩 메뉴얼의 샤드 트랜잭션 항목을 참조한다
 
 ##### 그 외 컬럼
 
-위 항목을 제외한 모든 칼럼은 *General Reference* 의 V\$SESSION 의 칼럼 정보를
-참고한다.
+위 항목을 제외한 모든 칼럼은 *General Reference* 의 V\$SESSION 의 칼럼 정보를 참고한다.
 
 ### S\$STATEMENT
 
-현재 접속한 샤드 노드와 관련된 모든 샤드 노드의 세션 별로 가장 최근 실행된
-구문에 대한 정보를 보여준다.
+모든 샤드 노드의 세션 별로 실행중이거나 가장 최근 실행된 구문에 대한 정보를 보여준다.
 
-| Column name               | Type           | Description                                        |
-| ------------------------- | -------------- | -------------------------------------------------- |
-| SHARD_SESSION_ID          | VARCHAR(20)    | 샤드 세션 식별자                                   |
-| NODE_NAME                 | VARCHAR(40)    | 샤드 노드의 이름                                   |
-| SESSION_ID                | INTEGER        | 샤드 노드의 V\$STATEMENT.SESSION_ID                |
-| SHARD_SESSION_TYPE        | VARCHAR(1)     | 샤드 노드의 세션에 대한 샤드 커넥션 타입           |
-| STATEMENT_ID              | INTEGER        | 샤드 노드의 V\$STATEMENT.ID                        |
-| QUERY_TYPE                | VARCHAR(1)     | 사용자 쿼리에 대한 샤드 쿼리 타입                  |
-| PARENT_ID                 | INTEGER        | 샤드 노드의 V\$STATEMENT.PARENT_ID                 |
-| CURSOR_TYPE               | INTEGER        | 샤드 노드의 V\$STATEMENT.CURSOR_TYPE               |
-| TX_ID                     | BIGINT         | 샤드 노드의 V\$STATEMENT.TX_ID                     |
-| QUERY                     | VARCHAR(12684) | 샤드 노드의 V\$STATEMENT.QUERY                     |
-| LAST_QUERY_START_TIME     | INTEGER        | 샤드 노드의 V\$STATEMENT.LAST_QUERY_START_TIME     |
-| QUERY_START_TIME          | INTEGER        | 샤드 노드의 V\$STATEMENT.QUERY_START_TIME          |
-| FETCH_START_TIME          | INTEGER        | 샤드 노드의 V\$STATEMENT.FETCH_START_TIME          |
-| EXECUTE_STATE             | VARCHAR(8)     | 샤드 노드의 V\$STATEMENT.EXECUTE_STATE             |
-| FETCH_STATE               | VARCHAR(12)    | 샤드 노드의 V\$STATEMENT.FETCH_STATE               |
-| ARRAY_FLAG                | INTEGER        | 노드의 V\$STATEMENT.ARRAY_FLAG                     |
-| ROW_NUMBER                | INTEGER        | 샤드 노드의 V\$STATEMENT.ROW_NUMBER                |
-| EXECUTE_FLAG              | INTEGER        | 샤드 노드의 V\$STATEMENT.EXECUTE_FLAG              |
-| BEGIN_FLAG                | INTEGER        | 샤드 노드의 V\$STATEMENT.BEGIN_FLAG                |
-| TOTAL_TIME                | BIGINT         | 샤드 노드의 V\$STATEMENT.TOTAL_TIME                |
-| PARSE_TIME                | BIGINT         | 샤드 노드의 V\$STATEMENT.PARSE_TIME                |
-| VALIDATE_TIME             | BIGINT         | 샤드 노드의 V\$STATEMENT.VALIDATE_TIME             |
-| OPTIMIZE_TIME             | BIGINT         | 샤드 노드의 V\$STATEMENT.OPTIMIZE_TIME             |
-| EXECUTE_TIME              | BIGINT         | 샤드 노드의 V\$STATEMENT.EXECUTE_TIME              |
-| FETCH_TIME                | BIGINT         | 샤드 노드의 V\$STATEMENT.FETCH_TIME                |
-| SOFT_PREPARE_TIME         | BIGINT         | 샤드 노드의 V\$STATEMENT.SOFT_PREPARE_TIME         |
-| SQL_CACHE_TEXT_ID         | VARCHAR(64)    | 샤드 노드의 V\$STATEMENT.SQL_CACHE_TEXT_ID         |
-| SQL_CACHE_PCO_ID          | INTEGER        | 샤드 노드의 V\$STATEMENT.SQL_CACHE_PCO_ID          |
-| OPTIMIZER                 | BIGINT         | 샤드 노드의 V\$STATEMENT.OPTIMIZER                 |
-| COST                      | BIGINT         | 샤드 노드의 V\$STATEMENT.COST                      |
-| USED_MEMORY               | BIGINT         | 샤드 노드의 V\$STATEMENT.USED_MEMORY               |
-| READ_PAGE                 | BIGINT         | 샤드 노드의 V\$STATEMENT.READ_PAGE                 |
-| WRITE_PAGE                | BIGINT         | 샤드 노드의 V\$STATEMENT.WRITE_PAGE                |
-| GET_PAGE                  | BIGINT         | 샤드 노드의 V\$STATEMENT.GET_PAGE                  |
-| CREATE_PAGE               | BIGINT         | 샤드 노드의 V\$STATEMENT.CREATE_PAGE               |
-| UNDO_READ_PAGE            | BIGINT         | 샤드 노드의 V\$STATEMENT.UNDO_READ_PAGE            |
-| UNDO_WRITE_PAGE           | BIGINT         | 샤드 노드의 V\$STATEMENT.UNDO_WRITE_PAGE           |
-| UNDO_GET_PAGE             | BIGINT         | 샤드 노드의 V\$STATEMENT.UNDO_GET_PAGE             |
-| UNDO_CREATE_PAGE          | BIGINT         | 샤드 노드의 V\$STATEMENT.UNDO_CREATE_PAGE          |
-| MEM_CURSOR_FULL_SCAN      | BIGINT         | 샤드 노드의 V\$STATEMENT.MEM_CURSOR_FULL_SCAN      |
-| MEM_CURSOR_INDEX_SCAN     | BIGINT         | 샤드 노드의 V\$STATEMENT.MEM_CURSOR_INDEX_SCAN     |
-| DISK_CURSOR_FULL_SCAN     | BIGINT         | 샤드 노드의 V\$STATEMENT.DISK_CURSOR_FULL_SCAN     |
-| DISK_CURSOR_INDEX_SCAN    | BIGINT         | 샤드 노드의 V\$STATEMENT.DISK_CURSOR_INDEX_SCAN    |
-| EXECUTE_SUCCESS           | BIGINT         | 샤드 노드의 V\$STATEMENT.EXECUTE_SUCCESS           |
-| EXECUTE_FAILURE           | BIGINT         | 샤드 노드의 V\$STATEMENT.EXECUTE_FAILURE           |
-| FETCH_SUCCESS             | BIGINT         | 샤드 노드의 V\$STATEMENT.FETCH_SUCCESS             |
-| FETCH_FAILURE             | BIGINT         | 샤드 노드의 V\$STATEMENT.FETCH_FAILURE             |
-| PROCESS_ROW               | BIGINT         | 샤드 노드의 V\$STATEMENT.PROCESS_ROW               |
-| MEMORY_TABLE_ACCESS_COUNT | BIGINT         | 샤드 노드의 V\$STATEMENT.MEMORY_TABLE_ACCESS_COUNT |
-| SEQNUM                    | INTEGER        | 샤드 노드의 V\$STATEMENT.SEQNUM                    |
-| EVENT                     | VARCHAR(128)   | 샤드 노드의 V\$STATEMENT.EVENT                     |
-| P1                        | BIGINT         | 샤드 노드의 V\$STATEMENT.P1                        |
-| P2                        | BIGINT         | 샤드 노드의 V\$STATEMENT.P2                        |
-| P3                        | BIGINT         | 샤드 노드의 V\$STATEMENT.P3                        |
-| WAIT_TIME                 | BIGINT         | 샤드 노드의 V\$STATEMENT.WAIT_TIME                 |
-| SECOND_IN_TIME            | BIGINT         | 샤드 노드의 V\$STATEMENT.SECOND_IN_TIME            |
-| SIMPLE_QUERY              | INTEGER        | 샤드 노드의 V\$STATEMENT.SIMPLE_QUERY              |
+| Column name        | Type        | Description                       |
+| ------------------ | ----------- | --------------------------------- |
+| SHARD_SESSION_ID   | VARCHAR(20) | 샤드 세션 식별자                  |
+| NODE_NAME          | VARCHAR(40) | 샤드 노드 이름                    |
+| SHARD_SESSION_TYPE | VARCHAR(1)  | 세션의 샤드 세션 유형             |
+| QUERY_TYPE         | VARCHAR(1)  | 사용자 쿼리에 대한 샤드 쿼리 타입 |
+| 그 외 컬럼         |             | 샤드 노드의 V$STATEMENT 와 동일   |
 
 #### 칼럼 정보
 
 ##### SHARD_SESSION_ID
 
-해당 구문이 속한 세션의 샤드 세션 식별자이다.
+구문이 수행되는 세션의 샤드 세션 식별자이다.
 
 ##### NODE_NAME
 
-샤드 노드의 이름을 나타낸다.
+구문이 수행되는 샤드 노드 이름이다.
 
 ##### SHARD_SESSION_TYPE
 
-해당 구문이 속한 노드의 세션에 대한 샤드 커넥션 유형이다.
+구문이 수행되는 세션의 샤드 세션 유형으로 S$SESSION.SHARD_SESSION_TYPE 과 동일하다.
 
 ##### QUERY_TYPE
 
-Altibase Sharding 관점으로 분류한 사용자 쿼리의 유형이다.
+Altibase Sharding 관점으로 분류한 사용자 쿼리 유형이다.
 
-- 분산 수행 결과와 단일 수행 결과의 정합성이 보장되는 경우 'S' (shard query)
-- 분산 수행 결과와 단일 수행 결과의 정합성이 보장되지 않는 경우 'N' (non-shard
-  query)
+- S (Shard query) : 분산 수행 결과와 단일 수행 결과의 정합성이 보장되는 경우
+- N (Non-shard query) : 분산 수행 결과와 단일 수행 결과의 정합성이 보장되지 않는 경우
 
-단, 샤드 노드에서 내부 커넥션을 통해 수행되는 구문의 경우 분석 대상이 아니므로
-'-' 로 표시된다.
+단, 코디네이터 커넥션을 통해 수행되는 구문의 경우 분석 대상이 아니므로 '-' 로 표시된다.
 
 ##### 그 외 컬럼
 
-위 항목을 제외한 모든 칼럼은 *General Reference*의 V\$STATEMENT의 칼럼 정보를
-참고한다.
+위 항목을 제외한 모든 칼럼은 *General Reference*의 V\$STATEMENT의 칼럼 정보를 참고한다.
 
 5.Altibase Sharding 패키지
 ------------------------
@@ -4548,6 +4212,7 @@ DBMS_SHARD 패키지는 Altibase Sharding의 샤드 설정과 관리에 사용�
 | SET_SHARD_LIST                | LIST 방식의 분산정보를 등록한다.                             |
 | SET_SHARD_CLONE               | CLONE 방식의 분산정보를 등록한다.                            |
 | SET_SHARD_SOLO                | SOLO 방식의 분산정보를 등록한다.                             |
+| RESET_SHARD_RESIDENT_NODE     | 등록된 분산 정보의 샤드 노드를 변경한다.                     |
 | SET_SHARD_COMPOSITE           | 복합 샤드 키 방식의 분산정보를 등록한다.                     |
 | CHECK_DATA                    | 샤드 키와 데이터의 유효성을 확인한다.                        |
 | REBUILD_DATA                  | 변경된 샤드 키 분산방식에 따라 모든 샤드 노드의 데이터를 재분배한다. |
@@ -4911,15 +4576,15 @@ Altibase Sharding 에서 지원하는 분산 방법의 종류는 샤드 테이�
 ##### 예제
 
 ```
-iSQL> EXEC dbms_shard.set_shard_procdure('sys','proc1','H','p1','node3');
+iSQL> EXEC dbms_shard.set_shard_procedure('sys','proc1','H','p1','node3');
 Execute success.
-iSQL> EXEC dbms_shard.set_shard_procdure('sys','proc2','R','p1','node3');
+iSQL> EXEC dbms_shard.set_shard_procedure('sys','proc2','R','p1','node3');
 Execute success.
-iSQL> EXEC dbms_shard.set_shard_procdure('sys','proc3','L','p1','node3');
+iSQL> EXEC dbms_shard.set_shard_procedure('sys','proc3','L','p1','node3');
 Execute success.
-iSQL> EXEC dbms_shard.set_shard_procdure('SYS','proc4','C');
+iSQL> EXEC dbms_shard.set_shard_procedure('SYS','proc4','C');
 Execute success.
-iSQL> EXEC dbms_shard.set_shard_procdure('SYS','proc5','S');
+iSQL> EXEC dbms_shard.set_shard_procedure('SYS','proc5','S');
 Execute success.
 ```
 
@@ -4965,7 +4630,7 @@ Altibase Sharding에서 지원하는 분산 방법의 종류는 샤드 테이블
 ##### 예제
 
 ```
-iSQL> EXEC dbms_shard.set_shard_procdure_composite('sys','proc6','L','p1', 'L','p2','node3');
+iSQL> EXEC dbms_shard.set_shard_procedure_composite('sys','proc6','L','p1', 'L','p2','node3');
 Execute success.
 ```
 
@@ -5206,6 +4871,47 @@ iSQL> EXEC dbms_shard.set_shard_solo('sys','proc5','node1');
 Execute success.
 ```
 
+#### RESET_SHARD_RESIDENT_NODE
+
+##### 구문
+
+```
+RESET_SHARD_RESIDENT_NODE( user_name     in varchar(128),
+                           object_name   in varchar(128),
+                           old_node_name in varchar(40),
+                           new_node_name in varchar(40),
+                           value         in varchar(100) default NULL,
+                           sub_value     in varchar(100) default NULL )
+```
+
+##### 파라미터
+
+| 이름          | 입출력 | 데이터 타입  | 설명                  |
+| ------------- | ------ | ------------ | --------------------- |
+| user_name     | IN     | VARCHAR(128) | 객체 소유자의 이름    |
+| object_name   | IN     | VARCHAR(128) | 객체 이름             |
+| old_node_name | IN     | VARCHAR(40)  | 현재 노드 이름        |
+| new_node_name | IN     | VARCHAR(40)  | 변경할 노드 이름      |
+| value         | IN     | VARCHAR(100) | 샤드 키의 최대값      |
+| sub_value     | IN     | VARCHAR(100) | 서브 샤드 키의 최대값 |
+
+##### 설명
+
+등록된 분산 정보의 샤드 노드를 변경한다.
+
+##### 예제
+
+```
+iSQL> EXEC dbms_shard.set_shard_table('sys','t1','H','i1');
+Execute success.
+iSQL> EXEC dbms_shard.set_shard_hash('sys','t1',500,'node1');
+Execute success.
+iSQL> EXEC dbms_shard.set_shard_hash('sys','t1',1000,'node3');
+Execute success.
+iSQL> EXEC dbms_shard.reset_shard_resident_node('sys','t1','node3','node2',1000);
+Execute success.
+```
+
 #### CHECK_DATA
 
 ##### 구문
@@ -5308,7 +5014,7 @@ total_record_count   :1000
 total_incorrect_count:641
 Execute success.
 
-iSQL> ALTER SESSION SET dblink_global_transaction_level = 2;
+iSQL> ALTER SESSION SET global_transaction_level = 2;
 iSQL> ALTER SESSION SET autocommit = false;
 
 iSQL> EXEC dbms_shard.rebuild_data('sys','t1',100);
@@ -5363,7 +5069,7 @@ Execute success.
 > - 복합 샤드 키를 포함한 샤드 키 테이블에 한해 적용된다.
 > - 기존의 샤드 분산 테이블을 해제하고 새로운 분산방식을 적용한 후, 이
 >    프로시저를 수행해야 한다.
-> - Global transaction , Non-autocommit 모드에서 수행하여야 정합성이 보장된다.
+> - 데이터의 정합성 보장을 위해서는 사용자 어플리케이션을 정지한 이후 수행해야 한다.
 
 #### REBUILD_DATA_NODE
 
@@ -5407,7 +5113,7 @@ total_record_count   :1000
 total_incorrect_count:160
 Execute success.
 
-iSQL> ALTER SESSION SET dblink_global_transaction_level = 2;
+iSQL> ALTER SESSION SET global_transaction_level = 2;
 iSQL> ALTER SESSION SET autocommit = false;
 
 iSQL> EXEC dbms_shard.rebuild_data_node('sys','t1','node2',100);
@@ -5435,7 +5141,7 @@ iSQL> COMMIT;
 > - 복합 샤드 키를 포함한 샤드 키 테이블에 한해 적용된다.
 > - 기존의 샤드 분산 테이블을 해제하고 새로운 분산방식을 적용한 후, 이
 >   프로시저를 수행해야 한다.
-> - Global transaction , Non-autocommit 모드에서 수행하여야 정합성이 보장된다.
+> - 데이터의 정합성 보장을 위해서는 사용자 어플리케이션을 정지한 이후 수행해야 한다.
 
 #### UNSET_NODE
 
@@ -5620,10 +5326,12 @@ Altibase Sharding은 다수의 데이터베이스로 구성되기 때문에, 각
 
 Shard Manager의 특징은 다음과 같다.
 
+-   샤드 데이터베이스를 손쉽게 추가/삭제/초기화할 수 있다.
 -   샤드 노드를 손쉽게 등록/수정/해제할 수 있다.
 -   DB 객체를 샤드 객체로 손쉽게 등록/해제할 수 있다.
 -   여러 노드에 걸쳐 존재하는 분산 객체의 개별 정보 및 분산 정보를 하나의 창에서 확인할 수 있다.
--   여러 샤드 노드들에 대해, SQL을 Primary DB/Alternate DB 단위로 한 번에 수행할 수 있다.
+-   여러 노드들에 대해, SQL(DDL)을 Primary DB/Alternate DB 단위로 한 번에 수행할 수 있다.
+-   샤드 노드 구성, 샤드 객체 분포 및 스키마, 그리고 데이터 분포를 HTML 형태의 레포트로 확인할 수 있다.
 
 ### 설치
 
@@ -5631,35 +5339,45 @@ Shard Manager의 특징은 다음과 같다.
 
 #### 시스템 요구사항
 
-Shard Manager는 아래와 같은 환경에서 설치 및 실행이 가능하다.
+Shard Manager는 Windows 또는 Linux에서 설치 및 실행이 가능하다.
+
+##### GUI 모드
+
+Windows용 Shard Manager는 Java 6 64bit JRE를 포함해서 패키징된다. 
+
+- Windows OS 64bit 사용자는 특별한 설정이 필요없다.
+- Windows OS 32bit 사용자는 Shard Mananager가 설치된 디렉토리의 64bit JRE 디렉토리를 32bit용 JRE로 변경해야 한다. 
 
 Linux용 Shard Manager는 JRE를 포함하지 않는다. 따라서 사용자가 실행 환경에 적합한 버전의 JRE를 설치해야 한다.
 
+##### CLI 모드
+
+실행 환경에 적합한 JAVA_HOME 환경변수를 설정해야 한다. 
+
+
+
 운영체제별 자세한 지원 사항은 다음의 링크된 페이지에서 확인할 수 있다( [http://www.eclipse.org/projects/project-plan.php?projectid=eclipse\#target_environments](http://www.eclipse.org/projects/project-plan.php?projectid=eclipse%23target_environments) ).
 
-| 리소스                        | 최소 요구사항                    |
-| ----------------------------- | -------------------------------- |
-| OS                            | Windows 32 bit 또는 Linux 64 bit |
-| 메모리                        | 512 MB                           |
-| Java Runtime Environment(JRE) | JRE Version 5                    |
-| 디스크 공간                   | 90 MB                            |
-| 화면 해상도                   | 1024 \* 786 pixels               |
-| CPU                           | Pentium III 800MHz               |
+| 리소스                        | 최소 요구사항                       |
+| ----------------------------- | ----------------------------------- |
+| OS                            | Windows 32/64 bit 또는 Linux 64 bit |
+| 메모리                        | 512 MB                              |
+| Java Runtime Environment(JRE) | JRE Version 6                       |
+| 디스크 공간                   | 90 MB                               |
+| 화면 해상도                   | 1024 \* 786 pixels                  |
+| CPU                           | Pentium III 800MHz                  |
 
 #### 호환가능 데이터베이스
 
 Shard Manager와 호환가능한 데이터베이스는 아래와 같다.
 
--   샤드 패키지가 설치되어 있어야 한다. 
--   샤드 메타가 생성되어 있어야 한다.
+-   알티베이스 데이터베이스에 샤드 환경 변수가 설정되어있어야 한다.
+-   알티베이스 데이터베이스 샤딩에 필요한 패키지가 설치되어 있어야 한다. 
 
-설치할 패키지는 $ALTIBASE_HOME/packages에 포함되어 있으며 설치 대상 목록은 다음과 같다.
+샤딩에 필요한 패키지는 $ALTIBASE_HOME/packages에 포함되어 있으며 설치 대상 목록은 다음과 같다.
 
 - dbms_shard.sql, dbms_shard.plb
-- dbms_lock.sql, dbms_lock.plb
-- utl_shard_online_rebuild.sql, utl_shard_online_rebuild.plb
-
-샤드 메타 생성에 대한 자세한 내용은 '*샤드 메타 생성'*을 참조한다.
+- dbms_metadata.sql, dbms_metadata.plb
 
 #### 설치와 제거
 
@@ -5667,36 +5385,42 @@ Shard Manager와 호환가능한 데이터베이스는 아래와 같다.
 
 ### 사용자 인터페이스
 
-아래는 Shard Manager를 최초로 실행한 화면이다.
+Shard Manager는 그래픽 사용자 인터페이스 (GUI) 모드와 명령어 인터페이스 (CLI) 모드, 두 가지 사용자 인터페이스를 제공한다. 
+
+#### 그래픽 사용자 인터페이스 (GUI) 모드
+
+GUI 모드는 사용자 친화적인 인터페이스로 Shard Manager의 기본 인터페이스이다. GUI 모드를 사용하면 샤드 데이터베이스 관리를 직관적으로 수행할 수 있다. GUI 사용자 인터페이스는 Windows OS를 기준으로 설명한다. 
+
+ShardManager.exe를 클릭해서 최초로 실행한 화면이다.
 
 화면에서 빈 공간은 샤드 데이터베이스 뷰, 샤드 객체 뷰에 따라 다른 뷰(쿼리 뷰, 상세 뷰, 레코드 카운트 뷰, 메모리 테이블스페이스 사용률 뷰)를 보여준다.
 
-![](media/Sharding/2adbdfe24edb1745d768c92b0b9813d2.jpg)
+![](media/Sharding/shm_first.png)
 
-#### 샤드 데이터베이스 뷰
+##### 샤드 데이터베이스 뷰
 
 샤드 데이터베이스 뷰는 샤드 노드를 하나의 그룹으로 표현하는 샤드 데이터베이스를 중심으로 샤드 정보를 보여준다. 기본 전체 화면의 왼쪽 상단에 위치한다.
 
 샤드 데이터베이스 뷰에서 표현하는 정보는 3가지이다.
 
 1. 샤드 데이터베이스: 사용자가 등록한 샤드 노드를 하나의 그룹으로 나타낸다. 특정 샤드 노드로 접속을 성공하면, 샤드 데이터베이스는 현재 접속 노드로부터 샤드 노드들의 정보를 가져와 트리 구조의 하위 노드로 표현한다.
-2. 샤드 노드: 샤드 메타에 등록된 샤드 노드이다. 하위 노드로 Primary/Alternate DB의 연결 정보를 보여준다.
+2. 샤드 노드: 샤드 메타에 등록된 샤드 노드이다. 하위 개체로 Primary/Alternate DB의 연결 정보를 보여준다.
 3. DB의 연결정보: 샤드 노드를 구성하는 Primary/Alternate DB 연결 정보이다.
 
-![](media/Sharding/83b991eb082ed678de6996afa963d0dd.png)
+![](media/Sharding/shm_shard_database_view.png)
 
 **Label Expression**
 
 -   샤드 데이터베이스: 샤드 데이터베이스 추가 시 사용자가 부여한 이름
 -   샤드 노드: 샤드 메타에 등록된 샤드 노드 이름
--   샤드 노드의 연결정보: IP 주소 : 포트 번호
+-   샤드 노드의 연결정보: IP 주소 : 포트 번호 (SMN)
 
 **Icon Expression**
 
 -   샤드 데이터베이스: 샤드 노드에 성공적으로 접속하면 아이콘 오른쪽 하단에 초록색 화살표를 표시한다.
 -   샤드 노드의 연결정보: 원형 아이콘은 접속 성공 시 초록색, 실패 시 빨간색으로 표시된다. 해당 연결 정보가 샤드 노드의 alternate DB는 아이콘 오른쪽 하단에 'A' 문자를 표시한다.
 
-#### 샤드 객체 뷰
+##### 샤드 객체 뷰
 
 샤드 객체 뷰는 샤드 데이터베이스 뷰에서 선택된 샤드 데이터베이스에 속한 샤드 객체를 보여준다. 기본 전체화면의 왼쪽 하단에 위치한다.
 
@@ -5707,7 +5431,7 @@ Shard Manager와 호환가능한 데이터베이스는 아래와 같다.
 -   테이블: 샤드 메타에 등록된 샤드 테이블이다.
 -   테이블 컬럼: 샤드 테이블에서 샤드 키 또는 서브 샤드 키로 사용되는 컬럼 정보
 
-![](media/Sharding/02d3bc710e2980772cbf5db795c0394c.jpg)
+![](media/Sharding/shm_shard_objects.png)
 
 **Label Expression**
 
@@ -5728,11 +5452,15 @@ Shard Manager와 호환가능한 데이터베이스는 아래와 같다.
 
 **샤드 객체 뷰 툴바**
 
--   Add New Shard Object(![](media/Sharding/e74a11e0f77d2845b3ca5b8cd59e27e9.png)): 샤드 객체를 추가한다.
--   Resharding(![](media/Sharding/58646a62a61346f627ee5b1a1e1cd20a.png)): 샤드 테이블의 리샤딩을 수행한다.
+-   Set Shard Object(![](media/Sharding/e74a11e0f77d2845b3ca5b8cd59e27e9.png)): 샤드 객체를 추가한다.
+-   Create Shard Hash Table (![](media/Sharding/table_add.png)): 새로운 테이블 생성과 Set Shard Hash Table을 동시에 수행한다.
+-   Resharding for Shard Key Distributed table(![](media/Sharding/reshard_shard.png)): Shard Key Distributed table (Hash, Range, List) 리샤딩을 수행한다.
+-   Resharding for Clone table(![](media/Sharding/reshard_clone.png)): Clone table 리샤딩을 수행한다.
+-   Resharding for Solo table(![](media/Sharding/reshard_solo.png)): Solo table 리샤딩을 수행한다.
+-   Refresh (![](media/Sharding/action_refresh.gif)): 샤드 객체 뷰를 업데이트 한다.																																							 
 
 
-#### 쿼리 뷰
+##### 쿼리 뷰
 
 쿼리 뷰는 사용자가 입력한 쿼리를 샤드 노드를 구성하는 Primary, Alternate DB를 대상으로 수행하는 뷰이다. 
 
@@ -5740,11 +5468,11 @@ Shard Manager와 호환가능한 데이터베이스는 아래와 같다.
 
 쿼리 뷰는 (Data Manipulation Language, DML: SELECT, INSERT, DELETE, UPDATE) 를 지원하지 않는다. 쿼리 뷰에서 입력한 DML은 사용자가 선택한 DB에서 모두 수행되기 때문에, 예상하지 못한 결과를 가져올 수 있다. 
 
-샤드 데이터베이스를 연결할 때 자동으로 뷰가 나타나며, 대상 데이터베이스의 이름이 뷰의 제목으로 사용된다. 사용자가 쿼리 뷰를 열 때에는 샤드 데이터베이스 뷰에서 샤드 데이터베이스를 마우스 오른쪽 버튼을 누르거나 선택 후, Database 메뉴를 열어 'Open Query View'를 선택하면 생성된다. 기본 전체 화면 오른쪽 상단에 위치한다.
+샤드 데이터베이스를 연결할 때 자동으로 뷰가 나타나며, 대상 데이터베이스의 이름이 뷰의 제목으로 사용된다. 사용자가 쿼리 뷰를 직접 열 때에는 샤드 데이터베이스 뷰에서 샤드 데이터베이스를 마우스 오른쪽 버튼을 누르거나 선택 후, Shard Database 메뉴를 열어 'Open Query View'를 선택하면 생성된다. 기본 전체 화면 오른쪽 상단에 위치한다.
+																											  
+![](media/Sharding/shm_query_view.png)
 
-![](media/Sharding/shm_query_tool.jpg)
-
-#### 쿼리 뷰 툴바
+##### 쿼리 뷰 툴바
 
 -   Execute Statement (![](media/Sharding/de1f28e5e2b6fb8d2d6484ef3772e3e9.png)): 커서로 선택한 문자 블록 또는 해당 커서가 위치한 라인이 수행된다.
 -   Execute Script (![](media/Sharding/436ca8084a13745802c439308c90c757.png)): 쿼리 뷰에 입력한 모든 SQL문이 수행된다.
@@ -5753,33 +5481,33 @@ Shard Manager와 호환가능한 데이터베이스는 아래와 같다.
 
 쿼리 뷰에 여러 SQL문을 입력할 수 있으며, 일부 또는 전체 SQL문을 선택하여 수행할 수 있다. SQL문은 입력한 순서대로 수행된다.
 
-#### 상세 뷰
+##### 상세 뷰
 
-상세 뷰는 특정 객체에 대해 각 노드에 저장된 해당 객체의 상세 정보와 샤드 메타에 등록된 분산 정보를 보여준다. 
+상세 뷰는 특정 객체에 대해 샤드 메타에 등록된 분산 정보와 각 노드에 저장된 해당 객체의 상세 정보를 보여준다. 
 
 대상 객체의 사용자 이름과 객체 이름이 개별 뷰의 제목으로 쓰인다. 샤드 객체 뷰에서 객체를 마우스 오른쪽 버튼으로 누르거나, 선택 후 Shard Object 메뉴를 열어 'Show Detail'을 선택하면 생성되며, 기본 전체화면의 오른쪽 상단에 위치한다.
 
-상세 뷰는 샤드 객체 정보를 'Detail'과 'Shard Info'라는 탭으로 분류하여 보여준다.
+상세 뷰는 샤드 객체 정보를 'Shard Info'와  'Detail'라는 탭으로 분류하여 보여준다.
 
--   Detail: 각 노드에 저장된 객체의 상세 정보를 보여준다.
-    -   Owner Databases: 샤드 객체 뷰에서 선택된 객체와 동일한 스키마 이름과 객체 이름을 가진 객체가 저장되어 있는 데이터베이스 리스트를 보여준다. (Label Expression: '샤드 노드 이름 (IP 주소 : 포트 번호)' )
-    -   Owner Databases에서 선택된 데이터베이스에 존재하는 분산 객체의 정보는 오른쪽 화면에 탭 형식으로 분류하여 나타낸다. 샤드 테이블의 경우 'Properties', 'Columns', 'Constraints'로 분류하고, 샤드 프로시저의 경우 'Properties', 'Parameters', 'Code'로 분류한다.
+-   Shard Info: 대상 객체가 샤드 객체인 경우, 샤드 메타에 등록된 분산 정보를 보여준다.
+    - Split Information: 샤드 키, 분산 방식, 기본 노드를 보여준다.
+    - Key Values: 선택한 샤드 객체가 분산된 샤드 노드의 이름과 샤드 키 값, 서브 샤드 키의 값을 보여준다.
 
-![](media/Sharding/shm_detail_view1.jpg)
+![](media/Sharding/shm_detail_view1.png)
 
-- Shard Info: 대상 객체가 샤드 객체인 경우, 샤드 메타에 등록된 분산 정보를 보여준다.
-  - Split Information: 분산 방식과 샤드 키, 서브 샤드 키, 기본 노드를 보여준다.
-  - Key Values: 선택한 샤드 객체가 분산된 샤드 노드의 이름과 샤드 키 값, 서브 샤드 키의 값을 보여준다.
+- Detail: 각 노드에 저장된 객체의 상세 정보를 보여준다.
+  - Owner Databases: 샤드 객체 뷰에서 선택된 객체와 동일한 스키마 이름과 객체 이름을 가진 객체가 저장되어 있는 데이터베이스 리스트를 보여준다. (Label Expression: '샤드 노드 이름 (IP 주소 : 포트 번호)' )
+  - Owner Databases에서 선택된 데이터베이스에 존재하는 분산 객체의 정보는 오른쪽 화면에 탭 형식으로 분류하여 나타낸다. 샤드 테이블의 경우 'Properties', 'Columns', 'Constraints'로 분류하고, 샤드 프로시저의 경우 'Properties', 'Parameters', 'Code'로 분류한다.
 
-![](media/Sharding/shm_detail_view2.jpg)
+![](media/Sharding/shm_detail_view2.png)
 
-#### 메모리 테이블스페이스 사용률 뷰
+##### 메모리 테이블스페이스 사용률 뷰
 
-메모리 테이블스페이스 사용률 뷰는 샤드 노드를 구성하는 DB의 메모리 테이블스페이스 사용률을 보여준다. 
+메모리 테이블스페이스 사용률 뷰는 샤드 데이터베이스를 구성하는 DB의 메모리 테이블스페이스 사용률을 보여준다. 
 
-접속한 데이터베이스를 마우스 오른쪽 버튼으로 누르거나, 선택 후 Database 메뉴를 열어 'Show Memory Tablespace Usage'를 클릭하면 생성된다. 생성 시 기본 전체화면 오른쪽 상단에 위치한다.
+접속한 샤드 데이터베이스를 마우스 오른쪽 버튼으로 누르거나, 선택 후 Shard Database 메뉴를 열어 'Show Memory Tablespace Usage'를 클릭하면 생성된다. 생성 시 기본 전체화면 오른쪽 상단에 위치한다.
 
-![](media/Sharding/shm_mem_usage.jpg)
+![](media/Sharding/shm_mem_usage.png)
 
 **칼럼 설명**
 
@@ -5790,15 +5518,15 @@ Shard Manager와 호환가능한 데이터베이스는 아래와 같다.
 -   Used(MB): 'Alloc(MB)'의 값 중, 실제 사용하는 메모리 크기
 -   Usage(%): 메모리 테이블스페이스 사용률 (= Alloc(MB) / Max(MB) \* 100)
 
-#### 레코드 카운트 뷰
+##### 레코드 카운트 뷰
 
 샤드 테이블의 레코드는 여러 샤드 노드에 분산되어 저장된다. 레코드 카운트 뷰는 각 샤드 노드에 저장된 레코드 개수를 표시한다. 기본적으로 Primary DB에 저장된 테이블 레코드 갯수를 보여준다.
 
 샤드 객체 뷰에서 테이블을 마우스 오른쪽 버튼으로 누르거나, 선택 후 'Shard Object' 메뉴에서 'Show Record Count'를 클릭하면 생성된다. 기본 전체화면의 오른쪽 상단에 위치한다.
 
-![](media/Sharding/shm_record_count1.jpg)
+![](media/Sharding/shm_record_count1.png)
 
-![](media/Sharding/shm_record_count2.jpg)
+![](media/Sharding/shm_record_count2.png)
 
 **칼럼 설명**
 
@@ -5806,7 +5534,7 @@ Shard Manager와 호환가능한 데이터베이스는 아래와 같다.
 -   Address: 샤드 노드의 연결정보로 노드에 Alternate DB가 있으면 연결정보를 선택할 수 있다. (Label Expression: 'IP 주소 : 포트 번호')
 -   Record Count: Shard Node와 Address 컬럼에서 선택된 데이터베이스에 저장된 테이블의 레코드 개수
 
-#### 콘솔 뷰
+##### 콘솔 뷰
 
 프로그램 수행 중 사용자에게 전달할 정보가 기록되는 뷰이다. 
 
@@ -5814,13 +5542,132 @@ Shard Manager와 호환가능한 데이터베이스는 아래와 같다.
 
 ![](media/Sharding/6bbda1671fc279b120c6c0736e63eb5f.jpg)
 
+#### 명령어 인터페이스 (CLI) 모드
+
+CLI 모드는 GUI를 수행할 수 없는 환경 또는 shell script를 이용한 반복 작업 수행 등 특수 목적을 위해 제공하는 인터페이스이다. CLI 사용자 인터페이스는 Linux OS를 기준으로 설명한다. 
+
+작업 수행 형식은 수행할 작업 option과 그에 따라 필요한 값을 입력한다. 
+
+```bash
+$ ./ShardManCli.sh -option [XML file path | shard_db_name]
+```
+
+지원하는 작업 option은 다음과 같이 확인할 수 있다.
+
+```bash
+$ ./ShardManCli.sh
+-----------------------------------------------------------------
+     Shard Manager CLI
+     Copyright 2000, ALTIBASE Corporation or its subsidiaries.
+     All Rights Reserved.
+-----------------------------------------------------------------
+usage: Shard Manager CLI
+ -report <arg>      generate report for given shard database name
+ -reshard <arg>     resharding shard objects with XML file
+ -sharddb <arg>     create/load/remove shard database with XML file
+ -shardnode <arg>   add/remove shard node(s) from target shard database
+                    with XML file
+```
+
+입력할 XML의 문법(DTD)는 Shard Manager 패키지에 제공되는 XML 샘플 파일을 참조한다. 
+
+- shard_db.xml: 샤드 데이터베이스 관리
+- shard_node.xml: 샤드 노드 관리
+- shard_obj.xml: 샤드 객체 관리
+- reshard.xml: 리샤딩
+
 ### 샤드 데이터베이스 관리
 
-이 절에서는 Shard Manager의 기능과 사용 방법에 대해 기술한다.
+#### 새로운 샤드 데이터베이스 추가
 
-#### 샤드 데이터베이스 등록
+새로운 샤드 데이터베이스를 만든다. 샤드 데이터베이스를 구성하는 모든 데이터베이스들은 샤드 메타값이 초기화 되어 있어야 하며, 샤드 객체는 없어야 한다. 새로 설치된 데이터베이스들에 샤드 데이터베이스 프로퍼티가 설정되어 있고, 필수 패키지만 설치된 상태를 권장한다.
 
-1.  툴바 또는 Database 메뉴에 위치한 'Add New Shard Database'를 클릭한다.
+##### GUI 모드
+
+1.  툴바 또는 Database 메뉴에 위치한 'Create New Shard Database'를 클릭한다.
+2.  샤드 데이터베이스 이름과 샤드 노드,  그리고 DB 공통 연결정보를 입력한다. 샤드 데이터베이스 이름은 사용자가 임의로 설정하는 이름이다. 샤드 노드 연결정보는 노드 이름 및 노드를 구성하는 데이터베이스 접속 정보를 입력한다. Replication IP는 데이터베이스의 IP와 다른 값을 사용한Alternate DB가 없으면 Alternate 컬럼에 값을 입력하지 않는다. Common Database Properties는 DB 접속에 필요한 공통 정보를 입력한다.
+3.  'Test' 버튼을 클릭하여 입력한 연결정보를 통해 노드에 접속이 정상적으로 이루어지는지 확인한다.
+4.  'OK' 버튼을 클릭하여 샤드 데이터베이스를 저장한다.
+7.  정상적으로 샤드 데이터베이스가 생성되었다면 해당 샤드 데이터베이스가 샤드 데이터베이스 뷰에 나타난다.
+
+##### CLI 모드
+
+```bash
+$ ./ShardManCli.sh -sharddb ./shard_db.xml
+```
+
+<ShardDb Action="Create">을 이용하여 새로운 샤드 데이터베이스를 등록한다.
+
+```xml
+<ShardDb Name = "NewAltiShard" Action="Create">
+    <CommonDbConn DbName="MYDB" UserName="SYS" Password="MANAGER" JdbcDriver="C:\Altibase\Driver\Altibase.jar"/>
+    <ShardNode Name="NODE1">
+       <Db Type="Primary"   Ip="192.168.1.11" Port="20300">
+       <Db Type="Alternate" Ip="192.168.1.12" Port="20300">
+    </ShardNode>
+    <ShardNode Name="NODE2">
+       <Db Type="Primary"   Ip="192.168.1.21" Port="20300" JdbcDriver="C:\Altibase\Driver\Altibase2.jar">
+       <Db Type="Alternate" Ip="192.168.1.22" Port="20300" JdbcDriver="C:\Altibase\Driver\Altibase2.jar">
+    </ShardNode>
+    <ShardNode Name="NODE3">
+       <Db Type="Primary"   Ip="192.168.1.31" Port="20300" ReplIp="192.168.2.31" >
+    </ShardNode>        
+</ShardDb>
+```
+
+새로운 샤드 데이터 베이스를 추가할 때, DB 객체 생성 및 샤드 객체 설정도 함께 할 수 있다 (<ShardObjList>). 샤드 객체 상세 내용은 '샤드 객체 설정'을 참조한다.
+
+```xml
+<ShardDb Name = "CreateShardDb" Action="Create">
+    <CommonDbConn DbName="MYDB" UserName="SYS" Password="MANAGER" DriverPath="./drv/Altibase_7_1_0_0_0_branch_rev.76468.jar"/>
+    <ShardNode Name="NODE1">
+       <Db Type="Primary"   Ip="192.168.1.24" Port="12099" />
+       <Db Type="Alternate" Ip="192.168.1.94" Port="56816" />
+    </ShardNode>
+    <ShardNode Name="NODE2">
+       <Db Type="Primary"   Ip="192.168.1.26" Port="12099" DriverPath="./drv/Altibase_Trunk_rev.81318.jar" />
+       <Db Type="Alternate" Ip="192.168.1.94" Port="56817" DriverPath="./drv/Altibase_Trunk_rev.81318.jar" />
+    </ShardNode>
+    <ShardNode Name="NODE3">
+       <Db Type="Primary"   Ip="192.168.1.27" Port="12099" RpIp="192.168.1.30" />
+    </ShardNode>
+    <ShardObjList>
+        <DDL> 
+            CREATE OR REPLACE PROCEDURE SYS.P1 (c1 INT) as begin null; 
+            END
+        </DDL>
+        <Set Schema="SYS" Name="P1" ObjType="P" SplitMethod="H" KeyColumnName="C1" DefaultNode="NODE1"/>
+        
+        <DDL IgnoreFailure = "T">DROP TABLE SYS.CT1</DDL>
+        <DDL>CREATE TABLE CT1 ( I1 char(20) primary key)</DDL>
+        <Set Schema="SYS" Name="CT1" ObjType="T" SplitMethod="C" DefaultNode="NODE1, NODE2, NODE3" />
+        
+        <DDL IgnoreFailure = "T">DROP TABLE SYS.ST1</DDL>
+        <DDL>CREATE TABLE ST1 ( I1 char(20) primary key)</DDL>
+        <Set Schema="SYS" Name="ST1" ObjType="T" SplitMethod="S" DefaultNode="NODE2" />  
+        
+        <DDL IgnoreFailure = "T">DROP TABLE SYS.HT1</DDL>
+        <CreateAndSet Schema="SYS" Name="HT1" ObjType="T" SplitMethod="H" KeyColumnName="I1" DefaultNode="NODE1" PartitionPerNode = "3">
+            <ColumnSql>
+                I1 VARCHAR(32) PRIMARY KEY, 
+                I2 VARCHAR(32)
+            </ColumnSql>
+        </CreateAndSet>
+    </ShardObjList>    
+</ShardDb>
+```
+
+
+
+#### 샤드 데이터베이스 읽어 오기
+
+미리 구성되어 있는 Altibase Sharding에 접속해 샤드 데이터베이스를 등록하는 메뉴이다.  
+
+주의할 점은 여러 개의 샤드 매니저가 동일한 Altibase Sharding을 대상으로 동시에 작업을 하면 예상하지 못한 결과를 초래할 수 있다. 반드시 하나의 샤드 매니저로 하나의 Altibase Sharding에만 작업해야 한다.
+
+##### GUI 모드
+
+1. 툴바 또는 Database 메뉴에 위치한 'Load from Running Shard Database'를 클릭한다.					  
 2.  샤드 데이터베이스 이름과 최초 접속 노드의 연결정보를 입력한다. 샤드 데이터베이스 이름은 사용자가 임의로 설정하는 이름이다. 최초 접속 노드 연결정보는 샤드 노드와 샤드 객체 정보를 가지고 오기 위해서 필요하다. 
 3.  'Test' 버튼을 클릭하여 입력한 연결정보를 통해 최초 접속 노드에 접속이 정상적으로 이루어지는지 확인한다.
 4.  'Next' 버튼을 클릭하여 다음 페이지에서 최초 접속 노드로부터 가져온 샤드 노드 이름, 연결정보, 그리고 접속하는데 사용될 JDBC 드라이버 파일을 확인한다.
@@ -5828,82 +5675,223 @@ Shard Manager와 호환가능한 데이터베이스는 아래와 같다.
 6.  'Finish' 버튼을 클릭하여 샤드 데이터베이스를 저장한다.
 7.  정상적으로 샤드 데이터베이스가 생성되었다면 해당 샤드 데이터베이스가 샤드 데이터베이스 뷰에 나타난다.
 
+##### CLI 모드
+
+```bash
+$ ./ShardManCli.sh -sharddb ./shard_db.xml
+```
+
+<ShardDb Action="Load">로 미리 구성되어 있는 샤드 데이터베이스를 Shard Manager에 등록한다. 샤드 데이터베이스내의 Primary DB 접속 정보를 입력 후 수행하면 된다.
+
+```xml
+<ShardDb Name = "LoadFromRunningAltiShard" Action="Load">
+   <Db Type="Primary"   Ip="192.168.1.11" Port="20300" DbName="MYDB" UserName="SYS"
+       Password="MANAGER" JdbcDriver="C:\Altibase\Driver\Altibase.jar">
+</ShardDb>
+```
+
 #### 샤드 데이터베이스 편집
 
+샤드 데이터베이스가 가장 먼저 접속할 데이터베이스의 접속 정보를 수정하기 위한 메뉴이다.
+
+##### GUI 모드				
+
 1.  샤드 데이터베이스 뷰에서 수정할 샤드 데이터베이스를 클릭한다.
-2.  샤드 데이터베이스 뷰 위에서 마우스 오른쪽 버튼을 누르거나, Database 메뉴를 열어 'Edit Shard Database'를 클릭한다.
+2.  샤드 데이터베이스 뷰 위에서 마우스 오른쪽 버튼을 누르거나, Shard Database 메뉴를 열어 'Edit Shard Database'를 클릭한다.
 3.  최초 접속 노드 연결정보를 수정한 뒤, 'Test'버튼을 클릭하여 접속 여부를 확인한다.
 4.  'Next' 버튼을 클릭하여 다음 페이지에서 수정된 최초 접속 노드로부터 가져온 데이터 노드 리스트를 확인한다.
 5.  각 샤드 노드 접속에 필요한 JDBC 드라이버 파일의 변경이 필요하면, Driver Path 열에서 해당하는 칸에 위치한 연필 아이콘을 클릭하여 파일을 변경한다.
 6.  'Finish' 버튼을 클릭하여 수정된 샤드 데이터베이스를 저장한다.
 
+##### CLI 모드
+
+N/A
+
 #### 샤드 데이터베이스 연결
 
 샤드 데이터베이스에 연결한다.
+
+##### GUI 모드
 
 1. 샤드 데이터베이스 뷰에서 연결할 샤드 데이터베이스를 더블클릭하거나, 마우스 오른쪽 버튼으로 눌러 'Connect'를 클릭한다.
 2. 연결이 정상적으로 수행되면 아이콘 오른쪽 하단에 초록색 화살표를 표시하고, 트리
    하위 노드로 샤드 메타에 등록된 샤드 노드를 표시한다.
 
+##### CLI 모드
+
+N/A
+
 #### 샤드 데이터베이스 연결 해제
 
 샤드 데이터베이스 연결을 해제한다.
 
+##### GUI 모드
+
 1. 샤드 데이터베이스 뷰에서 연결 해제할 샤드 데이터베이스를 더블클릭하거나, 마우스 오른쪽 버튼을 눌러 'Disconnect'를 클릭한다. 
 2. 연결이 정상적으로 해제되었다면 아이콘 오른쪽 하단에 있는 초록색 화살표가 사라지고, 트리 하위 노드들이 사라진다.
 
-#### 샤드 데이터베이스 제거
+##### CLI 모드
+
+N/A
+
+#### 샤드 데이터베이스 삭제
+
+샤드 데이터베이스를 초기화 후, Shard Manager에서 제거한다. 
+
+- 샤드 객체: 샤드 메타에 등록된 모든 샤드 객체를 해제하고, 대응되는 DB객체를 삭제한다. 
+- 샤드 노드: Primary DB와 Alternate DB간의 이중화 객체, 그리고 샤드 메타를 초기화 시킨다. 
+- 샤드 데이터베이스: Shard Manager에서 제거한다.
+
+##### GUI 모드
 
 1. 샤드 데이터베이스 뷰에서 삭제할 샤드 데이터베이스를 마우스 오른쪽 버튼으로 누르거나, 클릭 후 Database 메뉴를 열어 'Remove Shard Database'를 클릭한다.
 2. 삭제 여부를 묻는 팝업 창에서 삭제할 샤드 데이터베이스가 맞는지 확인한 뒤,'Yes' 버튼을 클릭한다.
 3. 정상적으로 샤드 데이터베이스가 삭제되었다면, 해당 샤드 데이터베이스가 샤드 데이터베이스 뷰에서 사라진다.
 
+##### CLI 모드
+
+```bash
+$ ./ShardManCli.sh -sharddb ./shard_db.xml
+```
+
+<ShardDb Action="Remove">를 이용하여 샤드 데이터베이스를 삭제한다.
+
+```xml
+<ShardDb Name = "RemoveAltiShard" Action="Remove"/>
+```
+
+
+
+#### 메모리 테이블스페이스 사용률 확인
+
+##### GUI 모드
+
+1.  샤드 데이터베이스 뷰에서 메모리 테이블스페이스의 사용률을 확인하려는 샤드 데이터베이스를 마우스 오른쪽 버튼으로 누르거나, 클릭 후 Database 메뉴를 열어 'Show Memory Tablespace Usage'를 클릭한다.
+2.  확인하고자 하는 데이터베이스의 행에서 Tablespace Name 열에 해당하는 칸을 클릭하여 원하는 메모리 테이블스페이스를 선택한다.
+
+##### CLI 모드
+
+N/A
+
+### 샤드 데이터베이스 레포트
+
+샤드 데이터베이스의 현황을 요약한 HTML 포멧의 Shard Confinguration, Record Count 레포트를 제공한다. 
+
+- Shard Confinguration 레포트: 샤드 노드 구성과 샤드 객체 구성 및 DDL을 보여준다. 
+
+- Record Count 레포트: 샤드 테이블의 노드(DB)별 레코드 갯수 분포를 보여준다. 이때 DB별 레코드 반환 시점의 차이로 인해 레코드 갯수 차이가 있을 수 있다.
+
+#### GUI 모드
+
+1. 샤드 데이터베이스 뷰에서 대상 샤드 데이터베이스를 마우스 오른쪽 버튼으로 누르거나, 메뉴바에서 Shard Database 메뉴를 열어 'Generate Report'를 클릭한다.
+2. 레포트 생성 완료 시 콘솔뷰에 파일 경로가 나타난다. 샤드 매니저가 설치된 경로의 report 디렉토리에 레포트 파일이 생성된다.  파일 이름은 수행 시작 시간을 기준으로 yyyyMMdd_HHmmss_[ShardConf | ShardRecord].html 형식으로 만들어진다.
+
+#### CLI 모드
+
+```bash
+$ ./ShardManCli.sh -report shardb_name
+```
+
+ XML 파일 대신 대상 샤드 데이터베이스 이름을 직접 입력하여 레포트를 생성한다. 생성되는 레포트 파일은 GUI 모드의 것과 동일하다.
+
+### 샤드 노드 관리
+
 #### 샤드 노드 추가
 
-샤드 노드를 추가한다.
+샤드 노드를 추가한다. 노드를 추가할때, 새 노드의 Primary/Alternate DB에 샤드 메타를 복제하고 샤드 객체를 생성한다. 또한 새 노드의 Primary/Alternate DB간에 이중화 객체도 필요시 자동 생성한다.
+
+추가되는 노드의 Primary/Alternate DB에는 DB 객체들이 없어야 한다. 샤드 데이터베이스 프로퍼티가 설정되어 있고, 필수 패키지만 설치된 초기화된 데이터베이스를 권장한다. 
+
+##### GUI 모드
 
 1.  샤드 데이터베이스에 새로운 샤드 노드를 추가한다.
 2.  샤드 데이터베이스 뷰에서 샤드 데이터베이스를 마우스 오른쪽 버튼으로 누르거나, 클릭 후 Shard Node 메뉴를 열어 'Add Data Node'를 클릭한다.
-3.  노드 이름과 Primary DB 연결정보를 반드시 입력하며, 선택적으로 alternate DB의 연결정보까지 입력할 수 있다.
+3.  노드 이름과 Primary DB 연결정보를 반드시 입력하며, 선택적으로 Alternate DB의 연결정보까지 입력할 수 있다.
 4.  'Test' 버튼을 클릭하여 입력한 연결정보에 접속이 정상적으로 이루어지는지 확인한다.
 5.  'OK' 버튼을 클릭하여 샤드 노드를 추가한다. 
-    1.  샤드 노드의 DB 메타(Primary/Alternate)에 다른 샤드 노드에 등록된 샤드 객체가 미리 생성되어 있지 않으면, 샤드 노드 등록에 실패한다.
-    2.  추가되는 샤드 노드에 Alternate DB 연결정보가 입력되어 있으면, 샤드 매니저가 샤드 테이블을 이중화하기 위한 이중화 객체를 Primary DB와 Alternate DB간에 자동으로 생성한다.
+    1.  추가할 샤드 노드의 Primary/Alternate DB에 기존 샤드 노드에 등록된 샤드 객체를 자동으로 생성 시도한다. 이때 DB 객체 생성이 하나라도 실패하면 생성에 성공한 DB 객체들도 다시 삭제 후, 샤드 노드 추가를 취소한다. 
+    2.  추가되는 샤드 노드에 Alternate DB 연결정보가 입력되어 있으면, Primary DB와 Alternate DB간 샤드 테이블을 이중화 하기 위해 이중화 객체를 자동으로 생성하고 이중화를 시작한다. 샤드 매니저가 생성하는 이중화 객체의 이름 형식은 SHDMGR_IN_NODE_*NodeName* 이다.
 6.  정상적으로 수행되었으면, 샤드 데이터베이스에 등록한 샤드 노드가 추가된다.
+
+##### CLI 모드
+
+```bash
+$ ./ShardManCli.sh -shardnode ./shard_node.xml
+```
+
+<ShardNode Action="Add">로 기존 샤드 데이터베이스에 새로운 노드를 추가한다.
+
+```xml
+<ShardDb Name = "AltiShard">
+    <ShardNode Name="NODE4" Action="Add">
+       <Db Type="Primary"   Ip="192.168.1.41" Port="20300">
+       <Db Type="Alternate" Ip="192.168.1.42" Port="20300">
+    </ShardNode>
+    <ShardNode Name="NODE5" Action="Add">
+       <Db Type="Primary"   Ip="192.168.1.51" Port="20300" ReplIp="192.168.2.51" JdbcDriver="C:\Altibase\Driver\Altibase.jar">
+    </ShardNode>
+</ShardDb>
+```
 
 #### 샤드 노드 삭제
 
  샤드 노드를 삭제한다.
+
+##### GUI 모드
 
 1.  샤드 데이터베이스 뷰에서 삭제할 샤드 노드를 마우스 오른쪽 버튼으로 누르거나, 클릭 후 Shard Node 메뉴를 열어 'Remove Shard Node'를 클릭한다.
 2.  삭제 여부를 묻는 팝업 창에서 삭제할 샤드 노드에 대한 정보를 확인한 뒤, 'Yes' 버튼을 클릭한다. Primary
     DB와 Alternate DB간 샤드 매니저가 생성한 이중화 객체가 있으면, 이를 감지해서 이중화 객체를 중지하고 삭제할 것인지 물어본다. 
 3.  정상적으로 샤드 노드가 삭제되었다면 샤드 데이터베이스 뷰 내 대상 노드가 사라진다.
 
+##### CLI 모드
+
+```bash
+$ ./ShardManCli.sh -shardnode ./shard_node.xml
+```
+
+<ShardNode Action="Remove">로 샤드 데이터베이스에서 등록된 노드를 제거한다. 제거되는 노드의  Shard key partitioned table의 파티션, Clone table, 그리고 Solo table은 AltNodeName의 노드로 이동된다. 
+
+```xml
+<ShardDb Name = "AltiShard">
+    <ShardNode Name="NODE5" Action="Remove" AltNodeName="NODE3">
+    <ShardNode Name="NODE4" Action="Remove" AltNodeName="NODE2">
+</ShardDb>
+```
+
 #### Alternate DB 추가
 
-샤드 메타에 Alternate DB 정보를 추가한다. 노드에서 Alternate DB가 추가된다.
+대상 노드에 Alternate DB를 추가한다. 새 Alternate DB에 샤드 메타를 복제하고 샤드 객체를 생성한다. 또한 Primary/Alternate DB간에 이중화 객체도 필요시 자동 생성한다.
+
+추가되는 Alternate DB는 DB  객체들이 없어야 한다. 샤드 데이터베이스 프로퍼티가 설정되어 있고, 필수 패키지만 설치된 초기화된 데이터베이스를 권장한다. 
+
+##### GUI 모드
 
 1. 샤드 데이터베이스 뷰에서 alternate DB를 추가할 샤드 노드 연결정보의 트리 상위 노드인 샤드 노드를 마우스 오른쪽 버튼으로 누르거나, 클릭 후 Shard Node 메뉴를 열어 'Add Alternate DB'를 클릭한다.
-2. 추가할 alternate DB 접속 정보를 입력한다.
+2. 추가할 alternate DB 접속 정보를 입력한다.																						   
 3. 'Test' 버튼을 클릭하여 입력한 연결정보로 접속이 정상적으로 이루어지는지 확인한다.
 4. 'OK' 버튼을 클릭하여 Alternate DB를 추가한다.
-   1. Primary DB에 생성되어 있는 샤드 객체가 Alternate DB의 DB 메타에 미리 생성되어 있지 않으면, 이를 알려주고 Alternate DB 추가가 실패한다.
-   2. Primary DB에 샤드 테이블이 있으면, Primary DB와 Alternate DB간 샤드 테이블을 이중화 하기 위해 샤드 매니저가 이중화 객체를 생성하고 이중화를 시작한다. 샤드 매니저가 생성하는 이중화 객체의 이름 형식은 SHDMGR_IN_NODE_*NodeName* 이다.
+   1. Primary DB에 생성되어 있는 샤드 객체가 Alternate DB의 DB 메타에 미리 생성되어 있지 않으면, 자동으로 생성 시도한다. 이때 DB 객체 생성이 하나라도 실패하면 생성에 성공한 DB 객체들도 다시 삭제 후,  Alternate DB 추가가 실패한다.
+   2. Primary DB에 샤드 테이블이 있으면, Primary DB와 Alternate DB간 샤드 테이블을 이중화 하기 위해 이중화 객체를 자동으로 생성하고 이중화를 시작한다. 샤드 매니저가 생성하는 이중화 객체의 이름 형식은 SHDMGR_IN_NODE_*NodeName* 이다.
 5. 정상적으로 alternate DB가 추가되었다면 샤드 데이터베이스 뷰 내 대상 샤드 노드의 트리 하위 노드로 Alternate DB정보가 추가된다.
+
+##### CLI 모드
+
+N/A
 
 #### Alternate DB 삭제
 
 샤드 메타에서 Alternate DB 정보를 삭제한다. 노드에서 Alternate DB가 제거된다.
 
+##### GUI 모드
+
 1.  샤드 데이터베이스 뷰에서 삭제할 Alternate DB가 포함된 샤드 노드를 마우스 오른쪽 버튼으로 누르거나, 클릭 후 Shard Node 메뉴를 열어 'Remove Alternate Node'를 클릭한다.
 2.  삭제 여부를 묻는 팝업 창에서 삭제할 Alternate DB를 확인한 뒤 'Yes' 버튼을 클릭한다.
 3.  정상적으로 alternate DB가 삭제되었다면 샤드 데이터베이스 뷰 내 대상 샤드 노드의 트리 하위 노드인 Alternate DB 정보가 사라진다.
 
-#### 메모리 테이블스페이스 사용률 확인
+##### CLI 모드
 
-1.  샤드 데이터베이스 뷰에서 메모리 테이블스페이스의 사용률을 확인하려는 샤드 데이터베이스를 마우스 오른쪽 버튼으로 누르거나, 클릭 후 Database 메뉴를 열어 'Show Memory Tablespace Usage'를 클릭한다.
-2.  확인하고자 하는 데이터베이스의 행에서 Tablespace Name 열에 해당하는 칸을 클릭하여 원하는 메모리 테이블스페이스를 선택한다.
+N/A
 
 ### 샤드 객체 관리
 
@@ -5911,57 +5899,314 @@ Shard Manager와 호환가능한 데이터베이스는 아래와 같다.
 
 일반 DB 객체를 샤드 객체로 설정한다. 샤드 메타에 샤드 객체 정보가 저장된다.
 
+##### GUI 모드
+
 1. 샤드 객체 뷰의 툴바에 위치한 'Set Shard Object' 버튼(![](media/Sharding/e74a11e0f77d2845b3ca5b8cd59e27e9.png)) 또는 메뉴에서 'Shard Object' - 'Set Shard Object' 항목을 클릭한다.
-2. 'Available Database Object' 테이블에서 샤드 객체로 지정할 항목의 체크박스를 클릭하여 선택한다.
-![](media/Sharding/shm_set_shard_object.jpg)
+2. 'Available Database Object' 테이블에서 샤드 객체로 지정할 항목의 체크박스를 클릭하여 선택한다. 이때 Shard Key도 함께 지정해야 한다.
+![](media/Sharding/shm_set_shard_object.png)
 3. 'Composite'을 제외한 샤드 키 분산 테이블이면, 선택한 샤드 객체의 샤드 키와 서브 샤드 키를 지정한 뒤, 샤드 키 분산 방식, 서브 샤드 키 분산 방식, 기본 노드를 선택한다.
 4. 'Key Values' 테이블에서 분산 정보에 등록할 노드와 샤드 키 값, 서브 샤드 키 값을 작성한다.
 5. 'Submit' 버튼을 클릭하여 샤드 객체 설정을 샤드 노드에 요청한다.
 6. 샤드 객체 설정이 완료되면, 해당 객체는 샤드 객체 뷰에 표시된다. 지정한 분산 방식은 'Split Method'에 표시되고, 샤드 키와 서브 샤드 키는 객체의 하위 노드로 표시된다.
 
+##### CLI 모드
+
+```bash
+$ ./ShardManCli.sh -shardobj ./shard_obj.xml
+```
+
+두가지 샤드 객체 설정 방법을 제공한다.
+
+첫번째는 모든 샤드 객체에 적용가능한 방법으로 <Set>을 사용하여 DB 객체를 샤드 객체로 설정하는 방법이다. 여기서 DDL은 DB 객체 생성/삭제가 필요한 경우에만 수행한다.
+
+```xml
+<ShardDb Name = "ShardDb">
+    <ShardObjList>
+        <DDL> 
+            CREATE OR REPLACE PROCEDURE SYS.P1 (C1 INT) as begin null; 
+            END
+        </DDL>
+        <Set Schema="SYS" Name="P1" ObjType="P" SplitMethod="H" KeyColumnName="C1" DefaultNode="NODE1"/>
+        
+        <DDL IgnoreFailure = "T">DROP TABLE SYS.HT2</DDL>
+        <DDL>
+            CREATE TABLE SYS.HT2 ( 
+                I1 VARCHAR(32) PRIMARY KEY, 
+                I2 VARCHAR(32) 
+            )
+            PARTITION BY RANGE_USING_HASH ( I1 )
+            (
+                PARTITION P1 VALUES LESS THAN ( 200 ),
+                PARTITION P2 VALUES LESS THAN ( 400 ),
+                PARTITION P3 VALUES LESS THAN ( 600 ),
+                PARTITION P4 VALUES LESS THAN ( 800 ),
+                PARTITION P5 VALUES LESS THAN ( 1000 ),
+                PARTITION PD VALUES DEFAULT
+            )
+        </DDL>
+        <Set Schema="SYS" Name="HT2" ObjType="T" SplitMethod="H" KeyColumnName="I1"  DefaultNode="NODE1">
+            <ValueNodeList>
+                <ValueNode Value = "200" NodeName="NODE1"/>
+                <ValueNode Value = "400" NodeName="NODE1"/>
+                <ValueNode Value = "600" NodeName="NODE2"/>
+                <ValueNode Value = "800" NodeName="NODE2"/>
+                <ValueNode Value = "1000" NodeName="NODE3"/>
+            </ValueNodeList>            
+        </Set>   
+                
+        <DDL IgnoreFailure = "T">DROP TABLE SYS.LT1</DDL>      
+        <DDL>
+            CREATE TABLE SYS.LT1 
+            ( 
+                C1 int PRIMARY KEY, 
+                C2 VARCHAR(32) 
+            )
+            PARTITION BY LIST ( C1 )
+            (
+                PARTITION P1 VALUES ( 1 ),
+                PARTITION P2 VALUES ( 2 ),
+                PARTITION P3 VALUES ( 3 ),
+                PARTITION PD VALUES DEFAULT
+            )
+        </DDL>
+        <Set Schema="SYS" Name="LT1" ObjType="T" SplitMethod="L"  KeyColumnName="C1" DefaultNode="NODE1">
+            <ValueNodeList>
+                <ValueNode Value = "SEOUL" NodeName="NODE1"/>
+                <ValueNode Value = "BUSAN" NodeName="NODE2"/>
+                <ValueNode Value = "TAEGU" NodeName="NODE3"/>
+            </ValueNodeList>
+        </Set>
+                
+        <DDL>
+            CREATE TABLE SYS.RT1 
+            ( 
+                C1 INTEGER PRIMARY KEY, 
+                C2 INTEGER
+            )
+            PARTITION BY RANGE ( C1 )
+            (
+                PARTITION P1 VALUES LESS THAN ( 100 ),
+                PARTITION P2 VALUES LESS THAN ( 300 ),
+                PARTITION P3 VALUES LESS THAN ( 500 ),
+                PARTITION PD VALUES DEFAULT
+            )
+        </DDL>
+        <Set Schema="SYS" Name="RT1" ObjType="T" SplitMethod="R" KeyColumnName="C1" DefaultNode="NODE1">
+            <ValueNodeList>
+                <ValueNode Value = "100" NodeName="NODE1"/>
+                <ValueNode Value = "300" NodeName="NODE2"/>
+                <ValueNode Value = "500" NodeName="NODE3"/>
+            </ValueNodeList>
+        </Set>
+        
+        <DDL>CREATE TABLE CT1 ( I1 char(20) primary key)</DDL>
+        <Set Schema="SYS" Name="CT1" ObjType="T" SplitMethod="C" DefaultNode="NODE1, NODE3" />
+                
+        <DDL>CREATE TABLE ST1 ( I1 char(20) primary key)</DDL>
+        <Set Schema="SYS" Name="ST1" ObjType="T" SplitMethod="S" DefaultNode="NODE2" />
+    </ShardObjList>
+</ShardDb>
+```
+
+두번째는 샤드 해시 테이블에만 적용가능한 방법으로 <CreateAndSet>으로 파티션드 해시 테이블을 생성하고, 이를 샤드 테이블로 설정한다. 
+
+PartitionPerNode는 각 노드당 몇개의 파티션을 생성할 것인지를 지정하는 옵션이다. 따라서, 최종 생성되는 파티션의 갯수는 (PartitionPerNode * 노드 갯수) + 디폴트 파티션 1개이다. 디폴트 파티션은 Default Node에 생성된다.
+
+```xml
+<ShardDb Name = "ShardDb">
+    <ShardObjList>
+        <CreateAndSet Schema="SYS" Name="HT1" ObjType="T" SplitMethod="H" KeyColumnName="C1" DefaultNode="NODE1" PartitionPerNode = "3">
+            <ColumnSql>
+                C1 VARCHAR(32) PRIMARY KEY, 
+                C2 VARCHAR(32)
+            </ColumnSql>
+        </CreateAndSet>
+    </ShardObjList>
+</ShardDb>
+```
+
+
+
 #### 샤드 객체 해제
 
 샤드 메타에서 샤드 객체 정보를 삭제하여, 일반 DB 객체로 변경한다.
 
+##### GUI 모드
+
 1.  샤드 객체 뷰에서 원하는 샤드 객체를 마우스 오른쪽 버튼으로 누르거나, 클릭 후 'Shard Object' 메뉴를 열어 'Unset Shard Object'를 클릭한다.
 2.  샤드 객체 해제를 완료하면, 샤드 객체 뷰에서 해당하는 샤드 객체가 제거된다. 
-    
+
+##### CLI 모드
+
+```bash
+$ ./ShardManCli.sh -shardobj ./shard_obj.xml
+```
+
+<Unset>을 이용하여 샤드 객체를 해제한다.
+
+```xml
+<ShardDb Name = "ShardDb">
+    <ShardObjList>
+        <Unset Schema="SYS" Name="PROC1" ObjType="P" /> 
+        <Unset Schema="SYS" Name="T1" ObjType="T" />
+    </ShardObjList>
+</ShardDb>
+```
 
 #### 샤드 객체 삭제
 
 샤드 객체를 해제한 후, 샤드 메타에서 삭제한다. 그리고, 샤드 데이터베이스에 등록된 모든 DB에서 해당 객체를 삭제한다.
 
+##### GUI 모드
+
 1.  샤드 객체 뷰에서 원하는 객체를 마우스 오른쪽 버튼으로 누르거나, 클릭 후 Shard Object 메뉴를 열어, 객체 종류가 테이블일 경우 'Drop Table'를, 프로시저일 경우 'Drop Procedure'를 클릭한다.
 2.  삭제 여부를 묻는 팝업 창에서 삭제할 객체를 확인한 뒤, 'Yes' 버튼을 클릭한다.
 3.  정상적으로 객체가 삭제되었다면 샤드 객체 뷰 내 해당 객체가 사라진다.
 
+##### CLI 모드
+
+CLI 모드에는 동일한 기능이 제공되지 않는다. 
+
+```bash
+$ ./ShardManCli.sh -shardobj ./shard_obj.xml
+```
+
+하지만, <Unset>과 <DDL>을 함께 사용하면 동일한 결과를 얻을 수 있다.
+
+```xml
+<ShardDb Name = "ShardDb">
+    <ShardObjList>
+        <Unset Schema="SYS" Name="PROC1" ObjType="P" /> 
+        <DDL>DROP PRCEDURE SYS.PROC1</DDL>
+        <Unset Schema="SYS" Name="T1" ObjType="T" />
+        <DDL>DROP TABLE SYS.T1</DDL>
+    </ShardObjList>
+</ShardDb>
+```
+
 #### 샤드 객체 정보 확인
+
+##### GUI 모드
 
 샤드 객체 뷰에서 원하는 객체를 마우스 오른쪽 버튼으로 누르거나, 클릭 후 Shard Object 메뉴를 열어 'Show Detail'을 클릭한다.
 
+##### CLI 모드
+
+N/A
+
 #### 테이블 레코드 카운트 확인
+
+##### GUI 모드
 
 1.  샤드 객체 뷰에서 원하는 테이블을 마우스 오른쪽 버튼으로 누르거나 클릭 후 Shard Object 메뉴를 열어, 'Show Record Count'를 클릭한다.
 2.  확인하고자 하는 샤드 노드의 행에서 Address 열에 해당하는 칸을 클릭하여 원하는 연결정보를 선택한다.
 
+##### CLI 모드
+
+N/A
+
 #### Resharding
 
-샤드 노드간 샤드 테이블의 데이터 재분배를 손쉽게 수행한다.
+샤드 노드간 샤드 테이블의 데이터 재분배를 손쉽게 수행한다. GUI 모드에서 리샤딩 대상 테이블 종류에 따라 Resharding for Shard Key Distributed table (Hash, Range, List), Resharding for Clone table, Resharding for Solo table를 선택 가능하다. CLI 모드에서는 -reshard 옵션과 동작을 정의한 XML을 작성해 리샤딩을 수행한다.
 
-1.  샤드 객체 뷰의 툴바에 위치한 'Resharding'(![](media/Sharding/58646a62a61346f627ee5b1a1e1cd20a.png)) 또는 메뉴에서 'Shard Object' - 'Resharding' 항목을 클릭한다.
-2.  'Shard Tables' 리스트에서 대상 샤드 테이블을 클릭하여 선택한다.
+##### Resharding for Shard Key Distributed table
+
+###### GUI 모드
+
+1.  샤드 객체 뷰의 툴바에 위치한 'Resharding for Shard Key Distributed table' 아이콘 또는 메뉴에서 'Shard Object' -> 'Resharding' -> 'Resharding for Shard Key Distributed table'을 클릭한다.
+2.  'Shard Tables' 리스트에서 리샤딩 대상 샤드 테이블을 클릭하여 선택한다.
 3.  샤드 테이블을 선택하면 'Partitions' 테이블에 파티션의 목록이 표시된다. 'Distribution' 테이블에는 노드별 레코드 갯수가 표시된다.
 4.  'Partitions' 테이블에서 ToNode 컬럼값을 클릭하여 이동할 노드를 선택한다. 'Shard Tables'에서 다른 테이블을 선택하여 여러 테이블을 resharding한번으로 작업할 수 있다. 작업 대상 파티션 노드 변경사항은 'Resharding candidates'에 표시된다.
 5.  'OK' 버튼을 누르면 작업 대상 파티션 노드 변경사항이 차례로 수행된다.
 6.  '테이블 레코드 카운트 확인'을 수행하여 Resharding으로 레코드 재분배 결과를 확인할 수 있다.
 
-### SQL 실행
+###### CLI 모드
+
+```bash
+$ ./ShardManCli.sh -reshard ./reshard.xml
+```
+
+아래는 NODE1의 H1 테이블 파티션 P1, P2를 NODE4로 리샤딩하는 예제이다.
+
+```xml
+<ReshardingList ShardDbName = "AltiShard">
+	<TableList FromNode="NODE1" ToNode="NODE4">
+		<Table Schema="SYS" Name="H1" Part="P1, P2" />
+	</TableList>
+</ReshardingList>
+```
+
+
+
+##### Resharding for Clone table
+
+###### GUI 모드
+
+1. 샤드 객체 뷰의 툴바에 위치한 'Resharding for Clone table' 아이콘 또는 메뉴에서 'Shard Object' -> 'Resharding' -> 'Resharding for Clone table'을 클릭한다.
+2. 'Clone Tables' 리스트에서 리샤딩 대상 샤드 테이블을 클릭하여 선택한다.
+3. 'Nodes' 테이블의 'New' 항목을 선택하여 복사 또는 이동할 노드를 선택한다. Clone table은 최소한 한개 이상의 노드에 있어야 한다.
+4. 'Shard Object' 뷰에서 리샤딩 한 테이블의 'Show Detail'을 수행하여 리샤딩 결과를 확인할 수 있다.
+
+###### CLI 모드
+
+```bash
+$ ./ShardManCli.sh -reshard ./reshard.xml
+```
+
+아래는 NODE1에만 할당된 클론 테이블 CT1을, NODE2, NODE3로 복제 후 NODE1에서 제거하는 예제이다. CloneOp는 Copy 또는 Remove를 선택할 수 있다. 자세한 내용은 패키지에 제공되는 reshard.xml의 DTD를 참고한다.
+
+```xml
+<ReshardingList ShardDbName = "AltiShard">
+	<TableList FromNode="NODE1" ToNode="NODE2">
+		<Table Schema="SYS" Name="CT1" CloneOp="Copy" />
+	</TableList>
+	<TableList FromNode="NODE1" ToNode="NODE3">
+		<Table Schema="SYS" Name="CT1" CloneOp="Copy" />
+        <Table Schema="SYS" Name="CT1" CloneOp="Remove" />
+	</TableList>    
+</ReshardingList>
+```
+
+
+
+##### Resharding for Solo table
+
+###### GUI 모드
+
+1. 샤드 객체 뷰의 툴바에 위치한 'Resharding for Solo table' 아이콘 또는 메뉴에서 'Shard Object' -> 'Resharding' -> 'Resharding for Solo table'을 클릭한다.
+2. 'Solo Tables' 리스트에서 리샤딩 대상 샤드 테이블을 클릭하여 선택한다.
+3. 'Nodes' 테이블의 'New' 항목을 선택하여 이동할 노드를 선택한다. Solo table은 하나의 노드에만 존재할 수 있다.
+4. 'Shard Object' 뷰에서 리샤딩 한 테이블의 'Show Detail'을 수행하여 리샤딩 결과를 확인할 수 있다.
+
+###### CLI 모드
+
+```bash
+$ ./ShardManCli.sh -reshard ./reshard.xml
+```
+
+아래는 솔로 테이블 ST1을 NODE1에서 NODE2로 리샤딩하는 예제이다.
+
+```xml
+<ReshardingList ShardDbName = "AltiShard">
+	<TableList FromNode="NODE1" ToNode="NODE2">
+		<Table Schema="SYS" Name="ST1" />
+	</TableList>
+</ReshardingList>
+```
+
+
+
+### SQL 실행: DDL
+
+샤드 데이터베이스에 속한 여러 데이터베이스들을 대상으로 사용자가 입력한 SQL을 수행한다. DDL만 지원되며, DML이나 Select 문은 지원하지 않는다.
+
+#### GUI 모드
 
 ##### 쿼리 뷰 열기
 
 샤드 데이터베이스 뷰에서 원하는 샤드 데이터베이스를 마우스 오른쪽 버튼으로 누르거나, 클릭 후 Database 메뉴를 열어 'Show Query View'를 클릭한다.
 
-#### SQL 실행
+##### SQL 실행
 
 선택한 노드 종류에 해당하는 데이터베이스에서 입력한 SQL문이 실행된다.
 
@@ -5969,3 +6214,28 @@ Shard Manager와 호환가능한 데이터베이스는 아래와 같다.
 2.  쿼리 뷰 내 툴바에 위치한 체크박스 중, 입력한 SQL문을 실행하고자 하는 대상 DB 종류를 선택한다.
 3.  입력한 SQL문 중 특정 쿼리만 수행하려면, 해당 구문을 마우스 커서로 드래그하여 선택한 뒤 쿼리 뷰의 툴바에서 'Execute Statement'(![](media/Sharding/de1f28e5e2b6fb8d2d6484ef3772e3e9.png))을 클릭한다. 입력한 전체 SQL문을 모두 수행하고 싶을 경우에는 'Execute Script'(![](media/Sharding/436ca8084a13745802c439308c90c757.png))을 클릭하여 SQL 문을 실행한다.
 4.  콘솔 뷰를 통해 각 데이터베이스에서의 실행 결과를 확인한다.
+
+#### CLI 모드
+
+```bash
+$ ./ShardManCli.sh -shardobj ./shard_obj.xml
+```
+
+아래는 DB 객체인 프로시저 P1과 테이블 T1을 모든 노드에 생성하는 예제이다.  
+
+IgnoreFailure = "T" 옵션을 사용하면, 해당 구문을 수행하다 실패 또는 예외가 발생해도 무시하고 다음 작업을 진행한다. IgnoreFailure = "T" 옵션이 없으면 실패 또는 예외 발생시 에러 메세지를 표시하고 문제 발생 지점에서 수행을 중지한다.
+
+좀더 상세한 내용은 '샤드 객체 관리'를 참조한다.
+
+```xml
+<ShardDb Name = "ShardDb">
+    <ShardObjList>
+        <DDL> 
+            CREATE OR REPLACE PROCEDURE SYS.P1 (C1 INT) as begin null; 
+            END
+        </DDL> 
+        <DDL IgnoreFailure = "T">DROP TABLE SYS.CT1</DDL>
+        <DDL>CREATE TABLE CT1 ( I1 char(20) primary key)</DDL>
+    </ShardObjList>
+</ShardDb>
+```
